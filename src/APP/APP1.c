@@ -10,7 +10,7 @@ void APP1_RunnableFunc(void)
     }
     else
     {
-    	//HLED_SetStatus(LED_GREEN2,LED_ON);/*do nothing*/
+    	HLED_SetStatus(LED_GREEN2,LED_ON);/*do nothing*/
     }
 
 }
