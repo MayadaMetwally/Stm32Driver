@@ -12,7 +12,7 @@ extern void HSWITCH_Runnable(void);
 extern void APP1_RunnableFunc(void);
 extern void APP2_RunnableFunc(void);
 extern void TrafficLights (void);
-
+extern void CLCD_TASK(void);
 
 
 
@@ -21,6 +21,7 @@ extern void TrafficLights (void);
 /************************************************Variables***********************************************/
 /********************************************************************************************************/
 Runnable_tstr Runnables[_RUNNABLE_NUM]={
+    [LCD_Runnable]={.PeriodicityMs=2,.FirstDelayMs=0,.CallBack=CLCD_TASK,.Priority=LCD_Runnable},
     [SW_Runnable]={.PeriodicityMs=5,.FirstDelayMs=1,.CallBack=HSWITCH_Runnable,.Priority=SW_Runnable},
     [APP1_Runnable]={.PeriodicityMs=50,.FirstDelayMs=5,.CallBack=APP1_RunnableFunc,.Priority=APP1_Runnable},
     [APP2_Runnable]={.PeriodicityMs=50,.FirstDelayMs=6,.CallBack=APP2_RunnableFunc,.Priority=APP2_Runnable},

@@ -8,8 +8,6 @@
  *************************    Brief: This source file implements functions for GPIO driver*********************.
  **************************************************************************************************************/
 #include "STD_TYPES.h"
-#include "MGPIO/GPIO_Private.h"
-#include "MGPIO/GPIO_Reg.h"
 #include "MGPIO/GPIO.h"
 
 #define GPIO_BSRR_RESET_OFFSET      0x00000010
