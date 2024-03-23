@@ -14,7 +14,11 @@ HSWITCH_Init();
 HLED_SetStatus(LED_GREEN2,LED_ON);
 CLCD_InitAsynch();
 Sched_Init();
-CLCD_WriteString("BASSAM",6);
+
+CLCD_GoToXYAsynch(1,2);
+CLCD_WriteStringAsynch("MyaADA",6);
+CLCD_ClearScreenAsynch();
+CLCD_WriteStringAsynch("Metwally",8);
 StartSched();
 
 

@@ -72,7 +72,7 @@
 #define HLCD_BLINKING               HLCD_DISABLE
 
 
-#define LCD_BUFFERSIZE               5
+#define LCD_BUFFERSIZE               10
 
 
 typedef struct {

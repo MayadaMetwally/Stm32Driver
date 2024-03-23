@@ -75,12 +75,58 @@
 /********************************************************************************************************/
 /************************************************APIs****************************************************/
 /********************************************************************************************************/
-
+/**
+ * @brief This function initializes the asynchronous initialization of the LCD.
+ *
+ * This function initializes the GPIO pins used for the LCD. It sets their modes and speeds
+ * according to the configurations provided. It sets the CLCD state to initialization state.
+ *
+ * @return None
+ */
 void CLCD_InitAsynch(void);
-void CLCD_ClearScreen(void);
-tenu_ErrorStatus CLCD_GoToXY(u8 Copy_x , u8 Copy_y); 
-tenu_ErrorStatus CLCD_WriteString(char * Add_pStr , u8 Copy_len);
-tenu_ErrorStatus CLCD_WriteCommand(u8 Copy_Command);
+/**
+ * @brief Clears the LCD screen.
+ *
+ * This function clears the entire content displayed on the LCD screen.
+ * It buffers the clear screen request for asynchronous processing.
+ *
+ * @return None
+ */
+void CLCD_ClearScreenAsynch(void);
+/**
+ * @brief Sets the cursor position on the LCD.
+ *
+ * This function sets the cursor position on the LCD display to the specified row and column.
+ * It buffers the set position request for asynchronous processing.
+ *
+ * @param Copy_X: Row number (1 or 2).
+ * @param Copy_Y: Column number (0 to 15).
+ *
+ * @return tenu_ErrorStatus: Status of the set position operation (LBTY_OK if successful, LBTY_ErrorInvalidInput if the input parameters are invalid, LBTY_NOK if unable to buffer the request).
+ */
+tenu_ErrorStatus CLCD_GoToXYAsynch(u8 Copy_x , u8 Copy_y); 
+/**
+ * @brief Writes a string to the LCD.
+ *
+ * This function writes a string of characters to the LCD display. It takes the string and its length as input
+ * parameters and buffers the write request for asynchronous processing.
+ *
+ * @param Add_pStr: Pointer to the string to be written.
+ * @param Copy_len: Length of the string to be written.
+ *
+ * @return tenu_ErrorStatus: Status of the write operation (LBTY_OK if successful, LBTY_ErrorNullPointer if the string pointer is NULL, LBTY_NOK if unable to buffer the request).
+ */
+tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len);
+/**
+ * @brief Writes a command to the LCD.
+ *
+ * This function writes a command to the LCD. It buffers the command write request for asynchronous processing.
+ *
+ * @param Copy_Command: The command to be written to the LCD.
+ *
+ * @return None
+ */
+void CLCD_WriteCommandAsynch(u8 Copy_Command);
 
 
 #endif// HCLCD_LCD_H_
