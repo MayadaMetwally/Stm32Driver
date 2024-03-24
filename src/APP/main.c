@@ -14,11 +14,13 @@ HSWITCH_Init();
 HLED_SetStatus(LED_GREEN2,LED_ON);
 CLCD_InitAsynch();
 Sched_Init();
-
+CLCD_WriteNumberAsynch(144);
+CLCD_WriteStringAsynch("145236",6);
 CLCD_GoToXYAsynch(1,2);
 CLCD_WriteStringAsynch("MyaADA",6);
 CLCD_ClearScreenAsynch();
 CLCD_WriteStringAsynch("Metwally",8);
+
 StartSched();
 
 

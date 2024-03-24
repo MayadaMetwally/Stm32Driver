@@ -12,6 +12,9 @@
 #include "STD_TYPES.h"
 #include "HCLCD/LCD.h"
 #include "MGPIO/GPIO.h"
+#include <string.h> // for strcpy
+#include<stdlib.h>
+
 
 
 /********************************************************************************************************/
@@ -121,8 +124,8 @@ typedef struct  // Define write structure
 /********************************************************************************************************/
 extern LCD_cfg_t HLCD; // Declare LCD configuration structure
 static CLCD_States_tenu  G_CLCD_State = CLCD_OFF; // Initialize CLCD state
-static CLCD_UserReq_tstr G_UserReq[LCD_BUFFERSIZE]; // Define array for user requests
-static CLCD_Write_tstr   G_UserWriteReq[LCD_BUFFERSIZE]; // Define array for write requests
+ CLCD_UserReq_tstr G_UserReq[LCD_BUFFERSIZE]; // Define array for user requests
+ CLCD_Write_tstr   G_UserWriteReq[LCD_BUFFERSIZE]; // Define array for write requests
 static u8 CLCD_EnablePin = DISABLE; // Initialize enable pin status
 static u8 CLCD_PositionX=0; // Initialize X position
 static u8 CLCD_PositionY=0; // Initialize Y position
@@ -206,6 +209,7 @@ static void CLCD_SendCommandHlp(u8 Copy_Command);
  * @return None
  */
 static void CLCD_WriteProcess(void);
+
 /**
  * @brief Main LCD task.
  *
@@ -410,6 +414,7 @@ void CLCD_WriteProcess(void){
                 CLCD_WriteCharProcess(G_UserReq[CLCD_CurrentBuffer].Str[CLCD_ITER]); // Write character to LCD
                 CLCD_EnablePin=ENABLE; // Enable LCD
                 CLCD_ControlEnablePin(GPIO_High); // Set enable pin high
+                
             }
             else
             {
@@ -421,6 +426,7 @@ void CLCD_WriteProcess(void){
         else
         {
             G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+            CLCD_BufferIndex=0;
         }
         break;
 
@@ -504,6 +510,8 @@ void CLCD_GoToXYProcess(void)
         break;
     }
 }
+/***********************************************************************************************/
+
 /******************************************user Functions*****************************************************/
 tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len){
     tenu_ErrorStatus Local_ErrorStatus = LBTY_OK; // Initialize local error status
@@ -536,6 +544,7 @@ tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len){
     }
     return Local_ErrorStatus; // Return error status
 }
+/******************************************user Functions*****************************************************/
 tenu_ErrorStatus CLCD_GoToXYAsynch(u8 Copy_X , u8 Copy_Y)
 {
     tenu_ErrorStatus Local_ErrorStatus = LBTY_OK; // Initialize local error status
@@ -569,6 +578,7 @@ tenu_ErrorStatus CLCD_GoToXYAsynch(u8 Copy_X , u8 Copy_Y)
 
     return Local_ErrorStatus; // Return error status
 }
+/******************************************user Functions*****************************************************/
 void CLCD_ClearScreenAsynch(void)
 {
     u8 idx_Buffer=0; // Declare buffer index variable
@@ -587,7 +597,7 @@ void CLCD_ClearScreenAsynch(void)
 
 
 }
-
+/******************************************user Functions*****************************************************/
 void CLCD_WriteCommandAsynch(u8 Copy_Command){
     u8 idx_Buffer=0; // Declare buffer index variable
      for(idx_Buffer=0;idx_Buffer<LCD_BUFFERSIZE;idx_Buffer++) // Loop through LCD buffers
@@ -601,4 +611,34 @@ void CLCD_WriteCommandAsynch(u8 Copy_Command){
               break; // Exit loop
          }
      }
+}
+/******************************************user Functions*****************************************************/
+tenu_ErrorStatus CLCD_WriteNumberAsynch(u16 Copy_Number)
+{
+	tenu_ErrorStatus Local_ErrorStatus = LBTY_OK;
+	char array[16];
+    u8 idx_Buffer=0;
+	itoa(Copy_Number,array,10);
+        for(idx_Buffer=0;idx_Buffer<LCD_BUFFERSIZE;idx_Buffer++) // Loop through LCD buffers
+    {
+        if (G_UserReq[idx_Buffer].BufferState==NotBuffered) // Check if buffer is not currently buffered
+        {
+            G_UserReq[idx_Buffer].Str= array; // Copy the string to the buffer
+            G_UserWriteReq[idx_Buffer].CurrPos=0; // Reset current position
+            G_UserReq[idx_Buffer].Len = strlen(array); // Set string length using strlen
+            G_UserReq[idx_Buffer].BufferState=Buffered; // Set buffer state to buffered
+            G_UserReq[idx_Buffer].Type=WriteReq; // Set request type to write
+            G_UserReq[idx_Buffer].State=CLCD_ReqStart; // Set request state to request start
+
+            break; // Exit loop                   
+        }        
+    }   
+    if (idx_Buffer==LCD_BUFFERSIZE) // Check if buffer index reaches buffer size
+    {
+        Local_ErrorStatus=LBTY_NOK; // Set error status to not ok
+    }
+	
+
+
+	return Local_ErrorStatus;
 }

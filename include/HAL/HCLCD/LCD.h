@@ -128,5 +128,6 @@ tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len);
  */
 void CLCD_WriteCommandAsynch(u8 Copy_Command);
 
+tenu_ErrorStatus CLCD_WriteNumberAsynch(u16 Copy_Number);
 
 #endif// HCLCD_LCD_H_
