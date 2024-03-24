@@ -1,6 +1,6 @@
 /************************************************************************************************************************************************/
 /* File             :       HLCD.c                                                                                                         */
-/* AUTHOR           :       ’Mayada Metwally                                                                                                        */
+/* AUTHOR           :       Mayada Metwally                                                                                                        */
 /* Origin Date      :       3/20/2024                                                                                                            */
 /* SWC              :       Character LCD                                                                                                       */
 /************************************************************************************************************************************************/
@@ -135,8 +135,8 @@ typedef struct  // Define write structure
 /********************************************************************************************************/
 extern LCD_cfg_t HLCD; // Declare LCD configuration structure
 static CLCD_States_tenu  G_CLCD_State = CLCD_OFF; // Initialize CLCD state
- CLCD_UserReq_tstr G_UserReq[LCD_BUFFERSIZE]; // Define array for user requests
- CLCD_Write_tstr   G_UserWriteReq[LCD_BUFFERSIZE]; // Define array for write requests
+static CLCD_UserReq_tstr G_UserReq[LCD_BUFFERSIZE]; // Define array for user requests
+static CLCD_Write_tstr   G_UserWriteReq[LCD_BUFFERSIZE]; // Define array for write requests
 static u8 CLCD_EnablePin = DISABLE; // Initialize enable pin status
 static u8 CLCD_ITER     =0; // Initialize iteration counter
 static u8 CLCD_CurrentBuffer   = 0; // Initialize current buffer index
@@ -264,7 +264,7 @@ void CLCD_TASK(void);
 /********************************************************************************************************/
 /*********************************************APIs Implementation****************************************/
 /********************************************************************************************************/
-/***********************************************************************************************/
+
 
 void CLCD_TASK(void)
 {
