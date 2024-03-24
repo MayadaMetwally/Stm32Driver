@@ -56,15 +56,15 @@
 #define HLCD_SHIFT_SCREEN_RIGHT         0x1C
 
 
-#define HLCD_SMILY_FACE     {0b00000,0b01010,0b01010,0b00000,0b10001,0b01110,0b00000,0b00000}
-#define HLCD_HEART          {0b00000,0b00000,0b01010,0b10101,0b10001,0b01110,0b00100,0b00000}
-#define HLCD_PERSON         {0b01110,0b01110,0b00100,0b01110,0b10101,0b00100,0b01010,0b10001}
-#define HLCD_PERSON2        {0b00100,0b01110,0b11111,0b11111,0b01110,0b01110,0b01010,0b01010}
-#define HLCD_LOCK           {0b01110,0b10001,0b10001,0b11111,0b11011,0b11011,0b11111,0b00000}
-#define HLCD_UNLOCK         {0b01110,0b10000,0b10000,0b11111,0b11011,0b11011,0b11111,0b00000}
-#define HLCD_FACE1          {0b00000,0b10001,0b01010,0b10001,0b00100,0b01110,0b10001,0b00000}
-#define HLCD_FACE_MASK      {0b11111,0b11111,0b10101,0b11011,0b11011,0b11111,0b10001,0b11111}
-#define HLCD_BELL           {0b00100,0b01110,0b01010,0b01010,0b01010,0b11111,0b00000,0b00100}
+#define HCLCD_SMILY_FACE     {0b00000,0b01010,0b01010,0b00000,0b10001,0b01110,0b00000,0b00000}
+#define HCLCD_HEART          {0b00000,0b00000,0b01010,0b10101,0b10001,0b01110,0b00100,0b00000}
+#define HCLCD_PERSON         {0b01110,0b01110,0b00100,0b01110,0b10101,0b00100,0b01010,0b10001}
+#define HCLCD_PERSON2        {0b00100,0b01110,0b11111,0b11111,0b01110,0b01110,0b01010,0b01010}
+#define HCLCD_LOCK           {0b01110,0b10001,0b10001,0b11111,0b11011,0b11011,0b11111,0b00000}
+#define HCLCD_UNLOCK         {0b01110,0b10000,0b10000,0b11111,0b11011,0b11011,0b11111,0b00000}
+#define HCLCD_FACE1          {0b00000,0b10001,0b01010,0b10001,0b00100,0b01110,0b10001,0b00000}
+#define HCLCD_FACE_MASK      {0b11111,0b11111,0b10101,0b11011,0b11011,0b11111,0b10001,0b11111}
+#define HCLCD_BELL           {0b00100,0b01110,0b01010,0b01010,0b01010,0b11111,0b00000,0b00100}
 
 
 /********************************************************************************************************/
@@ -90,9 +90,9 @@ void CLCD_InitAsynch(void);
  * This function clears the entire content displayed on the LCD screen.
  * It buffers the clear screen request for asynchronous processing.
  *
- * @return None
+ * @return tenu_ErrorStatus Error status indicating the success or failure of the operation.
  */
-void CLCD_ClearScreenAsynch(void);
+tenu_ErrorStatus CLCD_ClearScreenAsynch(void);
 /**
  * @brief Sets the cursor position on the LCD.
  *
@@ -124,9 +124,9 @@ tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len);
  *
  * @param Copy_Command: The command to be written to the LCD.
  *
- * @return None
+ * @return tenu_ErrorStatus Error status indicating the success or failure of the operation.
  */
-void CLCD_WriteCommandAsynch(u8 Copy_Command);
+tenu_ErrorStatus CLCD_WriteCommandAsynch(u8 Copy_Command);
 /**
  * @brief Writes a number to the LCD asynchronously.
  * 
@@ -141,7 +141,7 @@ void CLCD_WriteCommandAsynch(u8 Copy_Command);
  * 
  * @details
  * The function first initializes a local variable `Local_ErrorStatus` to `LBTY_OK` indicating
- * no error. It then converts the given number to a string using the `itoa` function and stores
+ * no error. It then converts the given number to a string and stores
  * it in the local character array `array`. The function then iterates through the LCD buffers
  * to find an available slot (`NotBuffered`). When an available slot is found, it copies the
  * number to the buffer, sets the buffer state to `Buffered`, and sets the request type to
@@ -150,6 +150,28 @@ void CLCD_WriteCommandAsynch(u8 Copy_Command);
  * If all buffer slots are already in use (`idx_Buffer == LCD_BUFFERSIZE`), the function sets
  * the error status to `LBTY_NOK` indicating a buffer full condition.
  */
-tenu_ErrorStatus CLCD_WriteNumberAsynch(u16 Copy_Number);
+tenu_ErrorStatus CLCD_WriteNumberAsynch(s32 Copy_Number);
+/**
+ * @brief Writes a special character asynchronously to the LCD.
+ * 
+ * This function sets up a request to write a special character asynchronously
+ * to the LCD.
+ * 
+ * @param Add_Pattern Pointer to the special character pattern.
+ * @param Copy_CGRAMBlockNumber The CGRAM block number to write the special character to.
+ * @return tenu_ErrorStatus Error status indicating the success or failure of the operation.
+ */
+
+tenu_ErrorStatus CLCD_WriteSpecialCharAsynch(char * Add_Pattern, u8 Copy_CGRAMBlockNumber);
+/**
+ * @brief Displays a special character asynchronously on the LCD.
+ * 
+ * This function sets up a request to display a special character asynchronously
+ * on the LCD.
+ * 
+ * @param Copy_CGRAMBlockNumber The CGRAM block number of the special character to be displayed.
+ * @return tenu_ErrorStatus Error status indicating the success or failure of the operation.
+ */
+tenu_ErrorStatus CLCD_DisplaySpecialCharAsynch( u8 Copy_CGRAMBlockNumber);
 
 #endif// HCLCD_LCD_H_
