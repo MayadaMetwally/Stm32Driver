@@ -127,7 +127,29 @@ tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len);
  * @return None
  */
 void CLCD_WriteCommandAsynch(u8 Copy_Command);
-
+/**
+ * @brief Writes a number to the LCD asynchronously.
+ * 
+ * This function converts the given number to a string and stores it in the LCD buffer
+ * for asynchronous writing to the LCD. It checks the buffer state to find an available
+ * buffer slot and stores the number along with the necessary request information.
+ * 
+ * @param Copy_Number The number to be written to the LCD.
+ * @return tenu_ErrorStatus Returns the error status of the operation.
+ *         - LBTY_OK: Operation successful.
+ *         - LBTY_NOK: Operation failed due to buffer full.
+ * 
+ * @details
+ * The function first initializes a local variable `Local_ErrorStatus` to `LBTY_OK` indicating
+ * no error. It then converts the given number to a string using the `itoa` function and stores
+ * it in the local character array `array`. The function then iterates through the LCD buffers
+ * to find an available slot (`NotBuffered`). When an available slot is found, it copies the
+ * number to the buffer, sets the buffer state to `Buffered`, and sets the request type to
+ * `WriteNumReq`. Finally, it sets the request state to `CLCD_ReqStart` and exits the loop.
+ * 
+ * If all buffer slots are already in use (`idx_Buffer == LCD_BUFFERSIZE`), the function sets
+ * the error status to `LBTY_NOK` indicating a buffer full condition.
+ */
 tenu_ErrorStatus CLCD_WriteNumberAsynch(u16 Copy_Number);
 
 #endif// HCLCD_LCD_H_

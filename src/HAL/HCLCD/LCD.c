@@ -75,6 +75,7 @@ typedef enum  // Define user request types
 {
     NOReq,
     WriteReq,
+	WriteNumReq,
     ClearReq,
     CommandReq,
     SetPositionReq,
@@ -105,6 +106,7 @@ typedef struct  // Define user request structure
     char *Str;
     u8 Len;
     u8 Command;
+    u16 Number;
     CLCD_UserReqType_tenu Type;
     CLCD_WriteState_tenu  State;
     CLCD_BufferState_tenu BufferState;
@@ -114,6 +116,8 @@ typedef struct  // Define write structure
 {
     u8 CurrPos;
     CallBackFunc cb;
+    u8 CLCD_PositionX; // Initialize X position
+    u8 CLCD_PositionY; // Initialize Y position
 }CLCD_Write_tstr;
 
 
@@ -127,11 +131,10 @@ static CLCD_States_tenu  G_CLCD_State = CLCD_OFF; // Initialize CLCD state
  CLCD_UserReq_tstr G_UserReq[LCD_BUFFERSIZE]; // Define array for user requests
  CLCD_Write_tstr   G_UserWriteReq[LCD_BUFFERSIZE]; // Define array for write requests
 static u8 CLCD_EnablePin = DISABLE; // Initialize enable pin status
-static u8 CLCD_PositionX=0; // Initialize X position
-static u8 CLCD_PositionY=0; // Initialize Y position
 static u8 CLCD_ITER     =0; // Initialize iteration counter
 static u8 CLCD_CurrentBuffer   = 0; // Initialize current buffer index
 static u8 CLCD_BufferIndex     = 0; // Initialize buffer index
+
 
 /********************************************************************************************************/
 /*****************************************Static Functions Prototype*************************************/
@@ -209,6 +212,30 @@ static void CLCD_SendCommandHlp(u8 Copy_Command);
  * @return None
  */
 static void CLCD_WriteProcess(void);
+/**
+ * @brief Writes a number to the LCD asynchronously.
+ * 
+ * This function writes a number to the LCD display asynchronously. It first reverses the number
+ * and then writes each digit to the display. It handles cases when the number is 0 and disables
+ * the LCD after completion.
+ * 
+ * @details
+ * The function starts by initializing a static variable `Local_Reversed` to 1. It then checks the
+ * state of the LCD write request. If the state is `CLCD_ReqStart`, it checks if the number to be
+ * written is 0. If it is, the function writes '0' to the LCD, enables the LCD, sets the enable
+ * pin high, and updates the request type and state. If the number is not 0, it moves to the
+ * in-progress state.
+ * 
+ * In the in-progress state (`CLCD_ReqInprogress`), the function reverses the number using a while
+ * loop and writes each digit to the LCD. It checks if the reversed number is not 1, and if so,
+ * it writes each digit to the LCD, enables the LCD, and sets the enable pin high. Once the
+ * writing is complete, it updates the request type and state, disables the LCD, and sets the
+ * enable pin low.
+ * 
+ * @note This function assumes that the LCD control pins and the LCD write character process
+ * functions (`CLCD_ControlEnablePin` and `CLCD_WriteCharProcess`) are defined elsewhere.
+ */
+static void CLCD_WriteNumProcess(void);
 
 /**
  * @brief Main LCD task.
@@ -237,8 +264,11 @@ void CLCD_TASK(void)
        switch (G_UserReq[CLCD_CurrentBuffer].Type) // Check type of current user request
        {
        case WriteReq:
-        CLCD_WriteProcess(); // Process write request  
+        CLCD_WriteProcess(); // Process write request
         break;
+       case WriteNumReq:
+    	 CLCD_WriteNumProcess(); //write number request
+    	 break;
        case ClearReq:
         CLCD_SendCommandHlp(DISPLAY_CLEAR); // Send command to clear display
         break;
@@ -284,7 +314,7 @@ void CLCD_TASK(void)
 void CLCD_InitAsynch(void){
     u8 idx =0; // Declare index variable
     GPIO_Pin_tstr LCD; // Declare GPIO pin structure for LCD
-    
+
     LCD.Mode=GPIO_MODE_OP_PP; // Set GPIO mode to output push-pull
     LCD.Speed=GPIO_SPEED_HIGH; // Set GPIO speed to high
   
@@ -309,7 +339,7 @@ void CLCD_InitAsynch(void){
     LCD.Port=HLCD.E_pin.Port; // Set E port number
     MGPIO_InitPin(&LCD); // Initialize E pin
       
-    G_CLCD_State = CLCD_Init_state; // Set LCD state to initialization state   
+    G_CLCD_State = CLCD_Init_state; // Set LCD state to initialization state
 }
 /***********************************************************************************************/
 void CLCD_InitSM(void){
@@ -339,7 +369,7 @@ void CLCD_InitSM(void){
 
         }
     } 
-        Counter++; // Increment counter   
+        Counter++; // Increment counter
         break;
     case DisplayControl:
         if(CLCD_EnablePin==DISABLE) // Check if enable pin is disabled
@@ -414,7 +444,7 @@ void CLCD_WriteProcess(void){
                 CLCD_WriteCharProcess(G_UserReq[CLCD_CurrentBuffer].Str[CLCD_ITER]); // Write character to LCD
                 CLCD_EnablePin=ENABLE; // Enable LCD
                 CLCD_ControlEnablePin(GPIO_High); // Set enable pin high
-                
+
             }
             else
             {
@@ -426,7 +456,6 @@ void CLCD_WriteProcess(void){
         else
         {
             G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-            CLCD_BufferIndex=0;
         }
         break;
 
@@ -486,14 +515,17 @@ void CLCD_GoToXYProcess(void)
     case CLCD_ReqInprogress: // If request is in progress
     	if(CLCD_EnablePin==DISABLE) // Check if LCD is not busy
     	 {
-    		if (CLCD_PositionX == FIRST_LINE && CLCD_PositionY < COLOUM_NUMBER) // Check if cursor position is on the first line and within column bounds
+    		if (G_UserWriteReq[CLCD_CurrentBuffer].CLCD_PositionX == FIRST_LINE && G_UserWriteReq[CLCD_CurrentBuffer].CLCD_PositionY < COLOUM_NUMBER) // Check if cursor position is on the first line and within column bounds
     		{
-    			CLCD_SendCommandProcess((CLCD_PositionY-1)+128); // Send command to set cursor position on the first line
+    			CLCD_SendCommandProcess((G_UserWriteReq[CLCD_CurrentBuffer].CLCD_PositionY-1)+128); // Send command to set cursor position on the first line
     		}
-    		else if (CLCD_PositionX == SECOND_LINE && CLCD_PositionY < COLOUM_NUMBER) // Check if cursor position is on the second line and within column bounds
+    		else if (G_UserWriteReq[CLCD_CurrentBuffer].CLCD_PositionX == SECOND_LINE && G_UserWriteReq[CLCD_CurrentBuffer].CLCD_PositionY < COLOUM_NUMBER) // Check if cursor position is on the second line and within column bounds
     		{
-    			CLCD_SendCommandProcess((CLCD_PositionY-1)+192); // Send command to set cursor position on the second line
+    			CLCD_SendCommandProcess((G_UserWriteReq[CLCD_CurrentBuffer].CLCD_PositionY-1)+192); // Send command to set cursor position on the second line
     		}
+            else{
+
+            }
 
     	    CLCD_EnablePin=ENABLE; // Enable LCD control pins
     	    CLCD_ControlEnablePin(GPIO_High); // Set control pin to high
@@ -511,7 +543,76 @@ void CLCD_GoToXYProcess(void)
     }
 }
 /***********************************************************************************************/
+void CLCD_WriteNumProcess(void) {
+    static u16 Local_Reversed = 1; // Initialize outside the function
+    switch (G_UserReq[CLCD_CurrentBuffer].State) {
+    case CLCD_ReqStart:
+       	if(G_UserReq[CLCD_CurrentBuffer].Number==0)
 
+       	{  if(CLCD_EnablePin==DISABLE) // Check if LCD enable pin is disabled
+               {
+
+                   CLCD_WriteCharProcess('0'); // Write character to LCD
+                   CLCD_EnablePin=ENABLE; // Enable LCD
+                   CLCD_ControlEnablePin(GPIO_High); // Set enable pin high
+
+               }
+               else
+               {
+                   CLCD_EnablePin=DISABLE; // Disable LCD
+                   CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
+                   G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                   G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Update request state to done
+
+               }
+       	}
+       	else
+       	{
+            G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqInprogress; // Move to in-progress state
+       	}
+
+       break;
+       case CLCD_ReqInprogress:
+
+       		while(G_UserReq[CLCD_CurrentBuffer].Number!=0)
+       		{
+       			Local_Reversed=(Local_Reversed*10)+(G_UserReq[CLCD_CurrentBuffer].Number%10);
+       			G_UserReq[CLCD_CurrentBuffer].Number/=10;
+       		}
+       		if(Local_Reversed!=1)
+
+           	{  if(CLCD_EnablePin==DISABLE) // Check if LCD enable pin is disabled
+                   {
+
+                       CLCD_WriteCharProcess((Local_Reversed%10)+'0'); // Write character to LCD
+                       Local_Reversed/=10;
+                       CLCD_EnablePin=ENABLE; // Enable LCD
+                       CLCD_ControlEnablePin(GPIO_High); // Set enable pin high
+
+                   }
+                   else
+                   {
+                       CLCD_EnablePin=DISABLE; // Disable LCD
+                       CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
+
+
+                   }
+           	}
+       		else
+       		{
+                G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Update request state to done
+                CLCD_EnablePin=DISABLE; // Disable LCD
+                CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
+       		}
+
+
+           break;
+
+       default:
+           break;
+       }
+}
 /******************************************user Functions*****************************************************/
 tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len){
     tenu_ErrorStatus Local_ErrorStatus = LBTY_OK; // Initialize local error status
@@ -533,7 +634,7 @@ tenu_ErrorStatus CLCD_WriteStringAsynch(char * Add_pStr , u8 Copy_len){
             G_UserReq[idx_Buffer].Type=WriteReq; // Set request type to write
             G_UserReq[idx_Buffer].State=CLCD_ReqStart; // Set request state to request start
 
-            break; // Exit loop                   
+            break; // Exit loop
         }        
     }   
     if (idx_Buffer==LCD_BUFFERSIZE) // Check if buffer index reaches buffer size
@@ -556,8 +657,8 @@ tenu_ErrorStatus CLCD_GoToXYAsynch(u8 Copy_X , u8 Copy_Y)
 	        if (G_UserReq[idx_Buffer].BufferState==NotBuffered) // Check if buffer is not currently buffered
 	        {
 
-	        		CLCD_PositionX=Copy_X; // Set current row
-	                CLCD_PositionY=Copy_Y; // Set current column
+	        		G_UserWriteReq[idx_Buffer].CLCD_PositionX=Copy_X; // Set current row
+	                G_UserWriteReq[idx_Buffer].CLCD_PositionY=Copy_Y; // Set current column
 	                G_UserReq[idx_Buffer].Type=SetPositionReq; // Set request type to set position
 	                G_UserReq[idx_Buffer].BufferState=Buffered; // Set buffer state to buffered
 	                G_UserReq[idx_Buffer].State=CLCD_ReqStart; // Set request state to request start
@@ -623,21 +724,19 @@ tenu_ErrorStatus CLCD_WriteNumberAsynch(u16 Copy_Number)
     {
         if (G_UserReq[idx_Buffer].BufferState==NotBuffered) // Check if buffer is not currently buffered
         {
-            G_UserReq[idx_Buffer].Str= array; // Copy the string to the buffer
-            G_UserWriteReq[idx_Buffer].CurrPos=0; // Reset current position
-            G_UserReq[idx_Buffer].Len = strlen(array); // Set string length using strlen
+            G_UserReq[idx_Buffer].Number=Copy_Number; // Copy the string to the buffer
             G_UserReq[idx_Buffer].BufferState=Buffered; // Set buffer state to buffered
-            G_UserReq[idx_Buffer].Type=WriteReq; // Set request type to write
+            G_UserReq[idx_Buffer].Type=WriteNumReq; // Set request type to write
             G_UserReq[idx_Buffer].State=CLCD_ReqStart; // Set request state to request start
 
-            break; // Exit loop                   
-        }        
-    }   
+            break; // Exit loop
+        }
+    }
     if (idx_Buffer==LCD_BUFFERSIZE) // Check if buffer index reaches buffer size
     {
         Local_ErrorStatus=LBTY_NOK; // Set error status to not ok
     }
-	
+
 
 
 	return Local_ErrorStatus;
