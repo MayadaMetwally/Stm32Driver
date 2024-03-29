@@ -72,6 +72,21 @@
 
 #define GPIO_MODE_ANALOG                    0x00000003
 
+/*******Macros for The Alternate Functions*******/
+#define GPIO_AF_SYSTEM          0x00000000
+#define GPIO_AF_TIM1_2          0x00000001
+#define GPIO_AF_TIM3_5          0x00000002
+#define GPIO_AF_TIME9_11        0x00000003
+#define GPIO_AF_I2C1_3          0x00000004
+#define GPIO_AF_SPI1_4          0x00000005
+#define GPIO_AF_SPI3            0x00000006
+#define GPIO_AF_USART1_2        0x00000007
+#define GPIO_AF_USART6          0x00000008
+#define GPIO_AF_I2C2_3          0x00000009
+#define GPIO_AF_OTG_FS          0x0000000A
+#define GPIO_AF_SDIO            0x0000000C
+#define GPIO_AF_EVENTOUT        0x0000000F
+
 
 
 typedef struct
@@ -80,6 +95,7 @@ typedef struct
     u32   Pin;
     u32   Mode;
     u32   Speed;
+    u32   AF;
 }GPIO_Pin_tstr;
 
 /*--------------------------------------------- APIs Interfaces ------------------------------------------*/
@@ -97,6 +113,8 @@ typedef struct
 
 
 tenu_ErrorStatus MGPIO_InitPin(GPIO_Pin_tstr* ADD_PinCfg);
+
+tenu_ErrorStatus MGPIO_InitPinAF(GPIO_Pin_tstr* ADD_PinCfg);
 
 /************************************Function Set the Pin*****************************************/
 

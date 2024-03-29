@@ -23,6 +23,8 @@ typedef struct{
 	volatile u32 AFRL;
 	volatile u32 AFRH;
 
+	
+
 }GPIO_Reg;
 
 /***************** Variables Definition **************/

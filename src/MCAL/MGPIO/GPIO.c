@@ -11,6 +11,8 @@
 #include "MGPIO/GPIO.h"
 
 #define GPIO_BSRR_RESET_OFFSET      0x00000010
+#define GPIO_4_BIT_MASK             0x0000000F
+#define GPIO_PIN_OFFSET_4           0x00000004 
 
 /************************************Function Initializes the Pin************************************/
 tenu_ErrorStatus MGPIO_InitPin(GPIO_Pin_tstr* ADD_PinCfg)
@@ -42,6 +44,62 @@ tenu_ErrorStatus MGPIO_InitPin(GPIO_Pin_tstr* ADD_PinCfg)
 		Local_Temp&=~(GPIO_CLEAR_MASK<<ADD_PinCfg->Pin*GPIO_PIN_OFFSET_2);
 		Local_Temp|=(ADD_PinCfg->Speed<<ADD_PinCfg->Pin*GPIO_PIN_OFFSET_2);
 		(((GPIO_Reg*)ADD_PinCfg->Port)->OSPEEDER)=Local_Temp;
+
+
+
+
+	}
+
+	return Local_ErrorStatus;
+}
+/*************************************************************************************************/
+/************************************Function Initializes the Pin************************************/
+tenu_ErrorStatus MGPIO_InitPinAF(GPIO_Pin_tstr* ADD_PinCfg)
+{
+	tenu_ErrorStatus Local_ErrorStatus=LBTY_OK;
+	u32 Local_Temp=0X0;
+	if (ADD_PinCfg->Pin>GPIO_PIN_15||ADD_PinCfg->Port==NULL)
+	{
+		Local_ErrorStatus=LBTY_NOK;
+	}
+	else
+	{
+		Local_Temp=((GPIO_Reg*)(ADD_PinCfg->Port))->MODER;
+		Local_Temp &=~((GPIO_CLEAR_MASK)<<((ADD_PinCfg->Pin)*GPIO_PIN_OFFSET_2));
+		Local_Temp|=((ADD_PinCfg->Mode&GPIO_MODE_MASK)<<((ADD_PinCfg->Pin)*GPIO_PIN_OFFSET_2));
+		((GPIO_Reg*)(ADD_PinCfg->Port))->MODER=Local_Temp;
+
+		Local_Temp=((GPIO_Reg*)ADD_PinCfg->Port)->OTYPER;
+		Local_Temp&=~(1<<ADD_PinCfg->Pin);
+		Local_Temp|=(((GPIO_OTYPE_MASK&ADD_PinCfg->Mode)>>GPIO_PIN_OFFSET_2)<<(ADD_PinCfg->Pin));
+		((GPIO_Reg*)ADD_PinCfg->Port)->OTYPER=Local_Temp;
+
+		Local_Temp=(((GPIO_Reg*)ADD_PinCfg->Port))->PUPDR;
+		Local_Temp&=~(GPIO_CLEAR_MASK<<ADD_PinCfg->Pin*GPIO_PIN_OFFSET_2);
+		Local_Temp|=(((GPIO_PUPD_MASK&ADD_PinCfg->Mode)>>GPIO_PIN_OFFSET_3)<<ADD_PinCfg->Pin*GPIO_PIN_OFFSET_2);
+		(((GPIO_Reg*)ADD_PinCfg->Port))->PUPDR=Local_Temp;
+
+
+
+		if(ADD_PinCfg->Pin>7)
+		{
+			ADD_PinCfg->Pin-=8;
+		
+        Local_Temp = ((GPIO_Reg *)(ADD_PinCfg->Port))->AFRH;
+        Local_Temp &= ~( (GPIO_4_BIT_MASK) << (ADD_PinCfg->Pin*GPIO_PIN_OFFSET_4) );
+        Local_Temp |= ( (ADD_PinCfg->AF) << (ADD_PinCfg->Pin*GPIO_PIN_OFFSET_4) );
+        ((GPIO_Reg *)(ADD_PinCfg->Port))->AFRH = Local_Temp;
+		}
+		else
+		{
+	    
+        Local_Temp = ((GPIO_Reg *)(ADD_PinCfg->Port))->AFRL;
+        Local_Temp &= ~( (GPIO_4_BIT_MASK) << (ADD_PinCfg->Pin*GPIO_PIN_OFFSET_4) );
+        Local_Temp |= ( (ADD_PinCfg->AF) << (ADD_PinCfg->Pin*GPIO_PIN_OFFSET_4) );
+        ((GPIO_Reg *)(ADD_PinCfg->Port))->AFRL = Local_Temp; 
+		}
+
+
 
 
 	}

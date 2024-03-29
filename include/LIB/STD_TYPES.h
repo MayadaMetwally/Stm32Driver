@@ -13,11 +13,14 @@ typedef signed long  int s32;
 typedef float  f32;
 typedef double f64;
 
+typedef unsigned long long  u64;
+
 
 typedef enum{
 	LBTY_OK = 0,
 	LBTY_ErrorInvalidInput,
     LBTY_ErrorNullPointer,
+	LBTY_Busy,
 	LBTY_NOK
 
 }tenu_ErrorStatus;
