@@ -1,16 +1,27 @@
 #include "APP/APP2.h"
+#include "HKPD/KYD.h"
+#include "MUSART/USART.h"
+
+USART_TXBuffer tx6_buff = 
+{
+	.Channel = USART1,
+	.Data = NULL,
+	.Size = 1
+};
 
 void APP2_RunnableFunc(void)
 {
-    u8 Local_Status;
-    HSWITCH_GetSwitchStatus(SWITCH_02,&Local_Status);
-    if(Local_Status==SWITCH_PRESSED)
+    u8 Local_Key=0;
+   KPD_GetPressedKey(&Local_Key);
+    if(Local_Key!=0)
     {
-        HLED_SetStatus(LED_RED2,LED_OFF);
+         tx6_buff.Data=&Local_Key;
+        USART_SendBufferZeroCopy(&tx6_buff);
     }
     else
     {
-        /*do nothing*/
-    }
+        
+    } 
+    
 
 }

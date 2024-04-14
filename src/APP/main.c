@@ -6,57 +6,16 @@
 #include "HSWITCH/SWITCH.h"
 #include "SERVICE/SCHED/SCHED.h"
 #include "HCLCD/LCD.h"
+#include "HKPD/KYD.h"
 #include "MUSART/USART.h"
 
-
-USART_RXBuffer rx_buff = 
-{
-	.Channel = USART1,
-	.Size = 1,
-	.Index = 0
-};
-
-USART_TXBuffer tx_buff = 
-{
-	.Channel = USART1,
-	.Data = " Hello my friend ",
-	.Size = 17
-};
-
-USART_TXBuffer tx_buff2 = 
-{
-	.Channel = USART1,
-	.Data = " take care ",
-	.Size = 11
-};
-USART_TXBuffer tx_buff3 = 
-{
-	.Channel = USART1,
-	.Data = " Bye my friend ",
-	.Size = 15
-};
-void recieve_callback(void)
-{
-	if (rx_buff.Data == 'M')
-	{
-		USART_SendBufferZeroCopy(&tx_buff);
-		HLED_Toggle(LED_RED2);
-	}
-	else if (rx_buff.Data == 'm')
-	{
-		USART_SendBufferZeroCopy(&tx_buff2);
-		HLED_Toggle(LED_RED);
-	}
-	else
-	{
-		USART_SendBufferZeroCopy(&tx_buff3);
-		HLED_Toggle(LED_YELLOW);
-	}
-}
+//extern USART_RXBuffer rx_buff;
 
 int main()
 {
+    u8 Loc_Smile[8]=HCLCD_SMILY_FACE;
     MRCC_ControlClockAHP1Peripheral(RCC_AHB1_GPIOA,RCC_ENABLE);
+    MRCC_ControlClockAHP1Peripheral(RCC_AHB1_GPIOB,RCC_ENABLE);
     MRCC_ControlClockABP2Peripheral(RCC_APB2_USART1,RCC_ENABLE);
     MNVIC_EnableInterrupt(NVIC_IRQ_USART1);
     USART_strCfg_t Usart1_Config;
@@ -93,43 +52,17 @@ int main()
 
 	MGPIO_InitPinAF(&TX_PIN);
 	MGPIO_InitPinAF(&RX_PIN);
-    HLED_Init();
+    CLCD_InitAsynch();
+    CLCD_WriteSpecialCharAsynch(&Loc_Smile,1);
+    KPD_INIT();
+    //HLED_Init();
 	USART_Init(&Usart1_Config);
-	USART_RegisterCallBackFunction(UART1_RECEIVE,recieve_callback);
+    //USART_ReceiveBufferAsynchronous(&rx_buff);
+	//USART_RegisterCallBackFunction(UART1_RECEIVE,Receive_RunnableFunc);
+    Sched_Init();
+    StartSched();
 	
 
-
-	
-    
-
-    //u8 loc_r1=0;
-	while (1)
-	{
-		USART_ReceiveBuffer(&rx_buff);
-		/* USART_SendBytesynchronous(USART1,'M');
-		USART_SendBytesynchronous(USART1,'A');
-		USART_SendBytesynchronous(USART1,'Y');
-		USART_SendBytesynchronous(USART1,'A');
-		USART_SendBytesynchronous(USART1,'D');
-		USART_SendBytesynchronous(USART1,'A');
-		USART_ReceiveBytesynchronous(USART1,&loc_r1);
-		if(loc_r1=='1')
-		{
-			HLED_Toggle(LED_RED);
-		}
-		else if(loc_r1=='2')
-		{
-			HLED_Toggle(LED_RED2);
-		}
-		USART_SendBytesynchronous(USART1,'D');  */
-		
-
-
-
-
-	}
-
-return 0;
 
 }
 

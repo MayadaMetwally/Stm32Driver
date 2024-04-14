@@ -25,7 +25,8 @@ typedef struct {
 #define FRACTION_MSK         0x0F       // Mask for extracting fraction bits in baud rate calculation
 #define USART_ENABLE_BIT     13         // Bit position for USART enable control
 #define PARITY_CONTROL_BIT   10         // Bit position for parity control
-#define TX_DATA_EMPTY_BIT    7          // Bit position for transmitter data empty interrupt enable
+#define PARITY_SELECTION_BIT 9         // Bit position for parity selection
+#define TX_DATA_EMPTY_BIT     7          // Bit position for transmitter data empty interrupt enable
 #define TRANSMIT_COMPLETE_BIT 6         // Bit position for transmit complete interrupt enable
 #define RX_DATA_NOT_EMPTY_BIT 5         // Bit position for receiver data not empty interrupt enable
 #define TX_ENABLE_BIT        3          // Bit position for transmitter enable control
@@ -33,6 +34,28 @@ typedef struct {
 #define USART_1              0          // USART channel 1 index
 #define USART_2              1          // USART channel 2 index
 #define USART_6              2          // USART channel 6 index
+
+
+/************************************************VALIDATIONS*************************************************/
+#define IS_VALID_CONTROL(MODE)          ((MODE) == (USART_Enable)||(MODE) == (USART_Disable))
+
+#define IS_VALID_BAUDRATE(BR)            ((BR) < 1000000U)
+
+#define IS_VALID_STOP_BIT(SB)            ((SB)==USART_1StopBit||(SB)==USART_2StopBit)
+
+#define IS_VALID_TRANSMITER(TX)          ((TX)==USART_EnableTX||(TX)==USART_DisableTX)
+
+#define IS_VALID_RECEIVER(RX)            ((RX)==USART_EnableRX||(RX)==USART_DisableRX)
+
+#define IS_VALID_CONTROL_PARITY(PARITY)  ((PARITY) == USART_DisableParity||(PARITY) == USART_EnableParity)
+
+#define IS_VALID_PARITY(PARITY)          ((PARITY)==USART_OddParity||(PARITY)==USART_EvenParity)
+
+#define IS_VALID_LENGTH(LENGTH)          ((LENGTH) == USART_8Bits||(LENGTH) == USART_9Bits)
+
+#define IS_VALID_USART(USART)            ((USART) == USART1||(USART) == USART2||(USART) == USART6)
+
+#define IS_VALID_SAMPLING(SAMPLING)      ((SAMPLING) == OVERSAMPLING_8 || (SAMPLING) == OVERSAMPLING_16)
 
 /********************************************************************************************************/
 /************************************************Types***************************************************/
@@ -88,33 +111,94 @@ u8 *Uart_prvRx_BufferReceive[USART_NUMBERS];
 /********************************************************************************************************/
 
 // Function prototype for determining USART channel index
-static tenu_ErrorStatus USART_InputUsart(void *USART_channel, u8 *Channel_idx);
+static USART_enuErrorStatus USART_InputUsart(void *USART_channel, u8 *Channel_idx);
 
 
 /********************************************************************************************************/
 /*********************************************APIs Implementation****************************************/
 /********************************************************************************************************/
 
-tenu_ErrorStatus USART_Init(const USART_strCfg_t* ConfigPtr)
+USART_enuErrorStatus USART_Init(const USART_strCfg_t* ConfigPtr)
 {
-    tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+    USART_enuErrorStatus Local_ErrorStatus = USART_OK;
     u32 Local_TempValue=0;
 	u16	Local_TempMantissa=0;
 	u16 Local_TempFraction=0;
 
     if (ConfigPtr==NULL)
     {
-        Local_ErrorStatus =LBTY_ErrorNullPointer;
+        Local_ErrorStatus =USART_NullConfPointer;
     }
+	else if(!(IS_VALID_BAUDRATE(ConfigPtr->BaudRate)))
+	{
+		Local_ErrorStatus = USART_BaudRateError;
+	}
+	else if(!(IS_VALID_CONTROL_PARITY(ConfigPtr->ParityControl)))
+	{
+		Local_ErrorStatus= USART_ParityControlError;
+	}
+	else if(!(IS_VALID_CONTROL(ConfigPtr->RXNE_Enable)||IS_VALID_CONTROL(ConfigPtr->TXCE_Enable)||\
+	                           IS_VALID_CONTROL(ConfigPtr->UartEnable)||IS_VALID_CONTROL(ConfigPtr->TXE_Enable)) )
+	{
+		Local_ErrorStatus=USART_ControlEnableError;
+
+	}
+	else if (!(IS_VALID_LENGTH(ConfigPtr->Word_bits)))
+	{
+		Local_ErrorStatus=USART_WordSizeError;
+	}
+	else if (!(IS_VALID_PARITY(ConfigPtr->ParitySelection)))
+	{
+		Local_ErrorStatus=USART_ParitySelectionError;
+	}
+	else if(!(IS_VALID_RECEIVER(ConfigPtr->ReceiverControl)))
+	{
+		Local_ErrorStatus = USART_ReceiverControlError;
+	}
+	else if(!(IS_VALID_SAMPLING(ConfigPtr->Oversampling)))
+	{
+		Local_ErrorStatus = USART_OverSamplingError;
+	}
+	else if(!(IS_VALID_STOP_BIT(ConfigPtr->Stop_bits)))
+	{
+		Local_ErrorStatus = USART_StopBitsError;
+	}
+    else if(!(IS_VALID_TRANSMITER(ConfigPtr->TransmitterControl)))
+	{
+		Local_ErrorStatus = USART_TransmitterControlError;
+	}
+	else if(!(IS_VALID_USART(ConfigPtr->pUartInstance)))
+	{
+		Local_ErrorStatus = USART_UsartSelectError;
+	}
+
 	else
 	{
 		Local_TempValue=((u64)F_CLK*1000)/(ConfigPtr->BaudRate*(8*(2-ConfigPtr->Oversampling)));
 		Local_TempFraction=(Local_TempValue%1000)*(8*(2-ConfigPtr->Oversampling));
+		if(Local_TempFraction % 1000 >= 500)
+		{
+			Local_TempFraction = (Local_TempFraction/1000) + 1 ;
+		}
+		else
+		{
+			Local_TempFraction/=1000;
+		}
 		Local_TempFraction/=1000;
 		Local_TempMantissa=Local_TempValue/1000;
-		if(Local_TempFraction>0xf)
+		if((Local_TempFraction>0xf)&&(ConfigPtr->Oversampling==OVERSAMPLING_16))
 		{
-			Local_TempMantissa+=(Local_TempFraction&0xf0);
+			Local_TempFraction=0;
+			Local_TempMantissa++;
+		}
+		else if ((Local_TempFraction>0x7)&&(ConfigPtr->Oversampling==OVERSAMPLING_8))
+		{
+			Local_TempMantissa++;
+			Local_TempFraction=0;
+		}
+		else
+		{
+        	/*Do Nothing*/
 		}
 		//0x4E2
 
@@ -123,7 +207,14 @@ tenu_ErrorStatus USART_Init(const USART_strCfg_t* ConfigPtr)
 		((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->Oversampling<<OVERSAMPLING_BIT;
 		((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->Word_bits<<WORDLENGTH_BIT;
 		((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->ParityControl<<PARITY_CONTROL_BIT;
-		//((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->ParitySelection<<PARITY_SELECTION_BIT;
+		if(ConfigPtr->ParityControl==USART_EnableParity)
+		{
+			((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->ParitySelection<<PARITY_SELECTION_BIT;
+		}
+		else
+		{
+			/*Do Nothing*/
+		}
 		((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->ReceiverControl<<RX_ENABLE_BIT;
 		((USART_t*)(ConfigPtr->pUartInstance))->CR1|=ConfigPtr->TransmitterControl<<TX_ENABLE_BIT;
 		
@@ -142,13 +233,13 @@ tenu_ErrorStatus USART_Init(const USART_strCfg_t* ConfigPtr)
 
 }
 /****************************************************************************************************/
-tenu_ErrorStatus USART_SendBytesynchronous(void* Channel, u8 Copy_Data)
+USART_enuErrorStatus USART_SendBytesynchronous(void* Channel, u8 Copy_Data)
 {
-	tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
 	
 	if(Channel==NULL)
 	{
-		Local_ErrorStatus=LBTY_ErrorNullPointer;
+		Local_ErrorStatus=USART_NullConfPointer;
 	}
 
 	else
@@ -156,7 +247,7 @@ tenu_ErrorStatus USART_SendBytesynchronous(void* Channel, u8 Copy_Data)
 
 		((USART_t*)Channel)->DR=Copy_Data;
 
-		while (((((USART_t*)Channel)->SR >> 6)&0x1)== 0);
+		while (((((USART_t*)Channel)->SR >> TRANSMIT_COMPLETE_BIT)&0x1)== 0);
 		
 		Local_ErrorStatus=LBTY_OK;
 
@@ -165,19 +256,41 @@ tenu_ErrorStatus USART_SendBytesynchronous(void* Channel, u8 Copy_Data)
 	 return Local_ErrorStatus; 
 }
 /***************************************************************************************************/
-tenu_ErrorStatus USART_ReceiveBytesynchronous(void* Channel, u8 * Copy_Data)
+USART_enuErrorStatus USART_SendByteSynchByTime(void *Channel, u8 Copy_Data)
 {
-	tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
+	
+	if(Channel==NULL)
+	{
+		Local_ErrorStatus=USART_NullConfPointer;
+	}
+
+	else
+	{
+		if(((((USART_t*)Channel)->SR >> TX_DATA_EMPTY_BIT)&0x1)== 1)
+		{
+			((USART_t*)Channel)->DR=Copy_Data;
+		}
+
+	}
+
+	 return Local_ErrorStatus; 
+
+}
+/****************************************************************************************************/
+USART_enuErrorStatus USART_ReceiveBytesynchronous(void* Channel, u8 * Copy_Data)
+{
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
 			
 	if(Channel==NULL)
 	{
-		Local_ErrorStatus=LBTY_ErrorNullPointer;
+		Local_ErrorStatus=USART_NullConfPointer;
 	}
 
 	else
 	{
 
-		while (((((USART_t*)Channel)->SR >> 5)&0x1)== 0);
+		while (((((USART_t*)Channel)->SR >> RX_DATA_NOT_EMPTY_BIT)&0x1)== 0);
 		*Copy_Data=((USART_t*)Channel)->DR;
 		
 
@@ -188,9 +301,33 @@ tenu_ErrorStatus USART_ReceiveBytesynchronous(void* Channel, u8 * Copy_Data)
 }
 
 /***************************************************************************************************/
-tenu_ErrorStatus USART_SendByteAsynchronous(void* Channel, u8 Copy_Data)
+USART_enuErrorStatus USART_ReceiveByteSynchByTime(void *Channel, u8 *Copy_Data)
 {
-	tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+		USART_enuErrorStatus Local_ErrorStatus = USART_OK;
+			
+	if(Channel==NULL)
+	{
+		Local_ErrorStatus=USART_NullConfPointer;
+	}
+
+	else
+	{
+
+		if(((((USART_t*)Channel)->SR >> RX_DATA_NOT_EMPTY_BIT)&0x1)== 1)
+		{
+			*Copy_Data=((USART_t*)Channel)->DR;
+		}
+
+		
+
+	}
+
+	 return Local_ErrorStatus; 
+}
+/****************************************************************************************************/
+USART_enuErrorStatus USART_SendByteAsynchronous(void* Channel, u8 Copy_Data)
+{
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
 	u8 Local_ChannelIdx=0;
 
 
@@ -222,9 +359,9 @@ tenu_ErrorStatus USART_SendByteAsynchronous(void* Channel, u8 Copy_Data)
 }
 /*****************************************************************************************************/
 
-tenu_ErrorStatus USART_ReceiveBuffer(USART_RXBuffer * ReceiveBuffer)
+USART_enuErrorStatus USART_ReceiveBufferAsynchronous(USART_RXBuffer * ReceiveBuffer)
 {
-	tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
 	u8 Local_ChannelIdx =0;
 	if(ReceiveBuffer==NULL)
 	{
@@ -241,7 +378,7 @@ tenu_ErrorStatus USART_ReceiveBuffer(USART_RXBuffer * ReceiveBuffer)
 		else
 		{
 			Uart_prvRx_BuzyFlag[Local_ChannelIdx] = USART_BUSY;
-			Uart_prvRx_BufferReceive[Local_ChannelIdx]=(u8 *)&(ReceiveBuffer->Data);
+			Uart_prvRx_BufferReceive[Local_ChannelIdx]= (u8 *)&(ReceiveBuffer->Data);
 			Uart_prvRx_BufferIndex[Local_ChannelIdx] = ReceiveBuffer->Index;
 			Uart_prvRx_BufferSize[Local_ChannelIdx] = ReceiveBuffer->Size;
 			((USART_t*)ReceiveBuffer->Channel)->CR1 |= USART_Interrupt.RX_DR_Empty;
@@ -252,9 +389,9 @@ tenu_ErrorStatus USART_ReceiveBuffer(USART_RXBuffer * ReceiveBuffer)
 	 return Local_ErrorStatus; 
 }
 /******************************************************************************************************************/
-tenu_ErrorStatus USART_SendBufferZeroCopy(USART_TXBuffer* Copy_ConfigBuffer)
+USART_enuErrorStatus USART_SendBufferZeroCopy(USART_TXBuffer* Copy_ConfigBuffer)
 {
-	tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
 	u8 Local_ChannelIdx=0;
 
 	Local_ErrorStatus=USART_InputUsart(Copy_ConfigBuffer->Channel,&Local_ChannelIdx);
@@ -285,9 +422,9 @@ tenu_ErrorStatus USART_SendBufferZeroCopy(USART_TXBuffer* Copy_ConfigBuffer)
 
 	 return Local_ErrorStatus; 
 }
-tenu_ErrorStatus USART_RegisterCallBackFunction( USART_Mode Mode, CallBack CallBackFunction)
+USART_enuErrorStatus USART_RegisterCallBackFunction( USART_Mode Mode, CallBack CallBackFunction)
 {
-	tenu_ErrorStatus Local_ErrorStatus = LBTY_NOK;
+	USART_enuErrorStatus Local_ErrorStatus = USART_OK;
 	if (CallBackFunction==NULL)
 	{
 		Local_ErrorStatus=LBTY_ErrorNullPointer;
@@ -300,9 +437,9 @@ tenu_ErrorStatus USART_RegisterCallBackFunction( USART_Mode Mode, CallBack CallB
 
 	 return Local_ErrorStatus; 
 }
-tenu_ErrorStatus USART_InputUsart(void * USART_channel,u8 * Channel_idx)
+USART_enuErrorStatus USART_InputUsart(void * USART_channel,u8 * Channel_idx)
 {
-	    tenu_ErrorStatus Loc_ErrorStatus= LBTY_OK;
+	    USART_enuErrorStatus Loc_ErrorStatus= LBTY_OK;
  		if(USART_channel==USART1)
 		{
 			*Channel_idx=USART_1;
@@ -341,13 +478,14 @@ void USART1_IRQHandler(void)
 				Uart_prvTX_BuzyFlag[USART_1] = USART_IDLE;
 				/*clear Tx Buffer Size*/
 				Uart_prvTX_BufferSize[USART_1] = 0;
+				/*Disable tc interrupt*/
+				((USART_t*)USART1)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
 				if(USART_pvCallBackFunc[UART1_SEND])
 				{
 					USART_pvCallBackFunc[UART1_SEND]();
 				}
 	
-				/*Clear Tc Flag*/
-				((USART_t*)USART1)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
+
 
 			}/*end of if*/
 			else
@@ -368,7 +506,7 @@ void USART1_IRQHandler(void)
 			Uart_prvRx_BufferIndex[USART_1]++;
 			if(Uart_prvRx_BufferSize[USART_1] == Uart_prvRx_BufferIndex[USART_1])
 			{
-				((USART_t*)USART1)->SR &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
+				((USART_t*)USART1)->CR1 &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
 				Uart_prvRx_BuzyFlag[USART_1] = USART_IDLE;
 				Uart_prvRx_BufferSize[USART_1] = 0;
 				if(USART_pvCallBackFunc[UART1_RECEIVE])
@@ -396,13 +534,12 @@ void USART2_IRQHandler(void)
 				Uart_prvTX_BuzyFlag[USART_2] = USART_IDLE;
 				/*clear Tx Buffer Size*/
 				Uart_prvTX_BufferSize[USART_2] = 0;
+				((USART_t*)USART2)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
 				if(USART_pvCallBackFunc[UART2_SEND])
 				{
 					USART_pvCallBackFunc[UART2_SEND]();
 				}
 
-				/*Clear Tc Flag*/
-				((USART_t*)USART1)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
 
 			}/*end of if*/
 			else
@@ -423,7 +560,7 @@ void USART2_IRQHandler(void)
 			Uart_prvRx_BufferIndex[USART_2]++;
 			if(Uart_prvRx_BufferSize[USART_2] == Uart_prvRx_BufferIndex[USART_2])
 			{
-				((USART_t*)USART2)->SR &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
+				((USART_t*)USART2)->CR1 &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
 				Uart_prvRx_BuzyFlag[USART_2] = USART_IDLE;
 				Uart_prvRx_BufferSize[USART_2] = 0;
 				if(USART_pvCallBackFunc[UART2_RECEIVE])
@@ -450,13 +587,12 @@ void USART6_IRQHandler(void)
 				Uart_prvTX_BuzyFlag[USART_6] = USART_IDLE;
 				/*clear Tx Buffer Size*/
 				Uart_prvTX_BufferSize[USART_6] = 0;
+				((USART_t*)USART6)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
 				if(USART_pvCallBackFunc[UART6_SEND])
 				{
 					USART_pvCallBackFunc[UART6_SEND]();
 				}
 	
-				/*Clear Tc Flag*/
-				((USART_t*)USART6)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
 
 			}/*end of if*/
 			else

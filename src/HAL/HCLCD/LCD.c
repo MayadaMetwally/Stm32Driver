@@ -29,6 +29,11 @@
 #define DISPLAY_CLEAR       0X01 // Define command for clearing display
 #define CLCD_NUMBER_OF_CGRAM_BYTES  8 
 #define CLCD_SET_CGR_ADDRESS        64 
+#define CLCD_FIRST_PART             0
+#define CLCD_FIRST_PART_SEND        1
+#define CLCD_SECOND_PART            2
+#define CLCD_FIRST_SECOND_PART      3 
+
 
 
 #define CONCAT_HELPER(B7,B6,B5,B4,B3,B2,B1,B0)          0b##B7##B6##B5##B4##B3##B2##B1##B0
@@ -67,6 +72,7 @@ typedef enum{  // Define CLCD states
 
 typedef enum{  // Define CLCD initialization states
     PowerON,
+    FunctionSet4bitMode,
     FunctionalSet,
     DisplayControl,
     DisplayClear,
@@ -141,6 +147,7 @@ static u8 CLCD_EnablePin = DISABLE; // Initialize enable pin status
 static u8 CLCD_ITER     =0; // Initialize iteration counter
 static u8 CLCD_CurrentBuffer   = 0; // Initialize current buffer index
 static u8 CLCD_BufferIndex     = 0; // Initialize buffer index
+static u8 CLCD_PartCount=0;
 
 
 /********************************************************************************************************/
@@ -297,8 +304,18 @@ void CLCD_TASK(void)
         {
             CLCD_EnablePin=DISABLE; // Disable LCD
             CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-            G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-            G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                    CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }
+
+
         }        
        
        break; 
@@ -381,10 +398,35 @@ void CLCD_InitSM(void){
     switch (SLocal_InitState)
     {
     case PowerON:
+        #if HLCD_MODE == HLCD_MODE_8_BIT
         SLocal_InitState = FunctionalSet; // Move to functional set state
+        #elif HLCD_MODE == HLCD_MODE_4_BIT
+        SLocal_InitState = FunctionSet4bitMode; // Move to functional set state        
+        #endif
         CLCD_EnablePin=DISABLE; // Disable enable pin
         CLCD_ControlEnablePin(GPIO_Low); // Set enable pin to low
         break;
+    case FunctionSet4bitMode:
+        if(CLCD_EnablePin==DISABLE) // Check if enable pin is disabled
+        {
+            MGPIO_SetPin(HLCD.R_S_pin.Port,HLCD.R_S_pin.Pin,GPIO_Low); // Set RS pin low to indicate command mode
+            MGPIO_SetPin(HLCD.R_W_pin.Port,HLCD.R_W_pin.Pin,GPIO_Low); // Set RW pin low to indicate write mode
+            MGPIO_SetPin(HLCD.LCD_data_pins[0].Port,HLCD.LCD_data_pins[0].Pin,GPIO_Low);
+            MGPIO_SetPin(HLCD.LCD_data_pins[1].Port,HLCD.LCD_data_pins[1].Pin,GPIO_High);
+            MGPIO_SetPin(HLCD.LCD_data_pins[2].Port,HLCD.LCD_data_pins[2].Pin,GPIO_Low);
+            MGPIO_SetPin(HLCD.LCD_data_pins[3].Port,HLCD.LCD_data_pins[3].Pin,GPIO_Low);
+            CLCD_EnablePin=ENABLE; // Enable enable pin
+            CLCD_ControlEnablePin(GPIO_High); // Set enable pin to high
+        }
+        else
+        {
+            CLCD_EnablePin=DISABLE; // Disable enable pin
+            CLCD_ControlEnablePin(GPIO_Low); // Set enable pin to low   
+            SLocal_InitState = FunctionalSet; // Move to functional set state      
+
+        }    
+
+        break;    
     case FunctionalSet:
     if(Counter>=19) // Check if counter reaches delay value
     {
@@ -398,7 +440,16 @@ void CLCD_InitSM(void){
         {
             CLCD_EnablePin=DISABLE; // Disable enable pin
             CLCD_ControlEnablePin(GPIO_Low); // Set enable pin to low
-            SLocal_InitState = DisplayControl; // Move to display control state
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                SLocal_InitState = DisplayControl; // Move to display control state
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                    CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }
+
 
         }
     } 
@@ -415,7 +466,17 @@ void CLCD_InitSM(void){
         {
             CLCD_EnablePin=DISABLE; // Disable enable pin
             CLCD_ControlEnablePin(GPIO_Low); // Set enable pin to low
-            SLocal_InitState = DisplayClear; // Move to display clear state
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                SLocal_InitState = DisplayClear; // Move to display clear state
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                    CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }
+
+            
 
         }
         
@@ -431,7 +492,15 @@ void CLCD_InitSM(void){
         {
             CLCD_EnablePin=DISABLE; // Disable enable pin
             CLCD_ControlEnablePin(GPIO_Low); // Set enable pin to low
-            SLocal_InitState =InitEnd; // Move to initialization end state
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                SLocal_InitState =InitEnd; // Move to initialization end state
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                    CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }         
 
         }    
         
@@ -454,11 +523,33 @@ void CLCD_SendCommandProcess(u8 Copy_Command){
     u8 idx=0; // Declare index variable
     MGPIO_SetPin(HLCD.R_S_pin.Port,HLCD.R_S_pin.Pin,GPIO_Low); // Set RS pin low to indicate command mode
     MGPIO_SetPin(HLCD.R_W_pin.Port,HLCD.R_W_pin.Pin,GPIO_Low); // Set RW pin low to indicate write mode
-   
+    #if HLCD_MODE == HLCD_MODE_8_BIT
     for(idx=0 ; idx<HLCD_PINS_NUMBER ; idx++) // Loop through data pins
     {
         MGPIO_SetPin(HLCD.LCD_data_pins[idx].Port,HLCD.LCD_data_pins[idx].Pin,((Copy_Command>>idx)&0x01)); // Set data pins according to command
     }
+    CLCD_PartCount=CLCD_FIRST_SECOND_PART;
+
+    #elif HLCD_MODE == HLCD_MODE_4_BIT
+    if(CLCD_PartCount==CLCD_FIRST_PART)
+    {
+        for(idx=0 ; idx<HLCD_PINS_NUMBER ; idx++) // Loop through data pins
+        {
+            MGPIO_SetPin(HLCD.LCD_data_pins[idx].Port,HLCD.LCD_data_pins[idx].Pin,((Copy_Command>>(idx+4))&0x01)); // Set data pins according to command
+        }
+        CLCD_PartCount=CLCD_FIRST_PART_SEND;
+    }
+
+    else if(CLCD_PartCount==CLCD_FIRST_PART_SEND)
+    {
+        for(idx=0 ; idx<HLCD_PINS_NUMBER ; idx++) // Loop through data pins
+        {
+            MGPIO_SetPin(HLCD.LCD_data_pins[idx].Port,HLCD.LCD_data_pins[idx].Pin,((Copy_Command>>(idx))&0x01)); // Set data pins according to command
+        }
+        CLCD_PartCount=CLCD_SECOND_PART;
+    }
+
+    #endif
 }
 /***********************************************************************************************/
 void CLCD_WriteProcess(void){
@@ -483,7 +574,17 @@ void CLCD_WriteProcess(void){
             {
                 CLCD_EnablePin=DISABLE; // Disable LCD
                 CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-                G_UserWriteReq[CLCD_CurrentBuffer].CurrPos++; // Move to next character position
+                if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+                {
+                    G_UserWriteReq[CLCD_CurrentBuffer].CurrPos++; // Move to next character position
+                    if(CLCD_PartCount==CLCD_SECOND_PART)
+                    {
+                        CLCD_PartCount=CLCD_FIRST_PART;
+                    }
+
+                }
+
+               
             }
         }
         else
@@ -515,7 +616,17 @@ void CLCD_WriteSpecialCharProcess(void)
         {
             CLCD_EnablePin=DISABLE; // Disable LCD
             CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-            G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqInprogress; // Move to in-progress state
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqInprogress; // Move to in-progress state
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                    CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }
+
+            
         }
 
 
@@ -535,7 +646,17 @@ void CLCD_WriteSpecialCharProcess(void)
             {
                 CLCD_EnablePin=DISABLE; // Disable LCD
                 CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-                G_UserWriteReq[CLCD_CurrentBuffer].CurrPos++; // Move to next character position
+                if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+                {
+                    G_UserWriteReq[CLCD_CurrentBuffer].CurrPos++; // Move to next character position
+                    if(CLCD_PartCount==CLCD_SECOND_PART)
+                    {
+                        CLCD_PartCount=CLCD_FIRST_PART;
+                    }
+
+                }
+
+                
             }
         }
 
@@ -557,8 +678,18 @@ void CLCD_WriteSpecialCharProcess(void)
         {
             CLCD_EnablePin=DISABLE; // Disable LCD
             CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-            G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-            G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                    CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }
+            
+
         }    
 
         break; 
@@ -574,10 +705,31 @@ void CLCD_WriteCharProcess(u8 Copy_Char){
    
     MGPIO_SetPin(HLCD.R_S_pin.Port,HLCD.R_S_pin.Pin,GPIO_High); // Set RS pin high to indicate data mode
     MGPIO_SetPin(HLCD.R_W_pin.Port,HLCD.R_W_pin.Pin,GPIO_Low); // Set RW pin low to indicate write mode
+    #if HLCD_MODE == HLCD_MODE_8_BIT
     for (idx=0 ; idx <HLCD_PINS_NUMBER; idx++) // Loop through data pins
     {
         MGPIO_SetPin(HLCD.LCD_data_pins[idx].Port,HLCD.LCD_data_pins[idx].Pin,(Copy_Char>>idx)&1); // Set data pins according to character
     }
+    #elif HLCD_MODE == HLCD_MODE_4_BIT
+    if(CLCD_PartCount==CLCD_FIRST_PART)
+    {
+        for(idx=0 ; idx<HLCD_PINS_NUMBER ; idx++) // Loop through data pins
+        {
+            MGPIO_SetPin(HLCD.LCD_data_pins[idx].Port,HLCD.LCD_data_pins[idx].Pin,((Copy_Char>>(idx+4))&0x01)); // Set data pins according to command
+        }
+        CLCD_PartCount=CLCD_FIRST_PART_SEND;
+    }
+
+    else if(CLCD_PartCount==CLCD_FIRST_PART_SEND)
+    {
+        for(idx=0 ; idx<HLCD_PINS_NUMBER ; idx++) // Loop through data pins
+        {
+            MGPIO_SetPin(HLCD.LCD_data_pins[idx].Port,HLCD.LCD_data_pins[idx].Pin,((Copy_Char>>(idx))&0x01)); // Set data pins according to command
+        }
+        CLCD_PartCount=CLCD_SECOND_PART;
+    }
+
+    #endif
 }
 /***********************************************************************************************/
 void CLCD_SendCommandHlp(u8 Copy_Command)
@@ -599,8 +751,17 @@ void CLCD_SendCommandHlp(u8 Copy_Command)
             {
                 CLCD_EnablePin=DISABLE; // Disable LCD
                 CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-                G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-                G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+                {
+                    G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                    G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                    if(CLCD_PartCount==CLCD_SECOND_PART)
+                    {
+                        CLCD_PartCount=CLCD_FIRST_PART;
+                    }
+
+                }                
+
             }
 
         break;
@@ -637,10 +798,19 @@ void CLCD_GoToXYProcess(void)
     	 }
        else // If LCD is busy
     	{
-    	  CLCD_EnablePin=DISABLE; // Disable LCD control pins
-    	  CLCD_ControlEnablePin(GPIO_Low); // Set control pin to low
-    	  G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-    	  G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Update request state to done
+    	    CLCD_EnablePin=DISABLE; // Disable LCD control pins
+    	    CLCD_ControlEnablePin(GPIO_Low); // Set control pin to low
+
+            if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+            {
+                G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                if(CLCD_PartCount==CLCD_SECOND_PART)
+                {
+                  CLCD_PartCount=CLCD_FIRST_PART;
+                }
+
+            }  
     	}
     	break;
     default:
@@ -666,8 +836,16 @@ void CLCD_WriteNumProcess(void) {
                {
                    CLCD_EnablePin=DISABLE; // Disable LCD
                    CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-                   G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-                   G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Update request state to done
+                    if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+                    {
+                        G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                        G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                        if(CLCD_PartCount==CLCD_SECOND_PART)
+                        {
+                            CLCD_PartCount=CLCD_FIRST_PART;
+                        }
+
+                    }  
 
                }
        	}
@@ -688,8 +866,16 @@ void CLCD_WriteNumProcess(void) {
                {
                    CLCD_EnablePin=DISABLE; // Disable LCD
                    CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
-                   G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
-                   G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Update request state to done
+                    if(CLCD_PartCount==CLCD_SECOND_PART||CLCD_PartCount==CLCD_FIRST_SECOND_PART)
+                    {
+                        G_UserReq[CLCD_CurrentBuffer].Type=ReqDone; // Set request type to done
+                        G_UserReq[CLCD_CurrentBuffer].State=CLCD_ReqDone; // Set request state to done
+                        if(CLCD_PartCount==CLCD_SECOND_PART)
+                        {
+                            CLCD_PartCount=CLCD_FIRST_PART;
+                        }
+
+                    }  
 
                }
  
@@ -712,21 +898,24 @@ void CLCD_WriteNumProcess(void) {
        		if(Local_Reversed!=1)
 
            	{  if(CLCD_EnablePin==DISABLE) // Check if LCD enable pin is disabled
-                   {
+                {
 
-                       CLCD_WriteCharProcess((Local_Reversed%10)+'0'); // Write character to LCD
-                       Local_Reversed/=10;
-                       CLCD_EnablePin=ENABLE; // Enable LCD
-                       CLCD_ControlEnablePin(GPIO_High); // Set enable pin high
+                   CLCD_WriteCharProcess((Local_Reversed%10)+'0'); // Write character to LCD
+                   Local_Reversed/=10;
+                   CLCD_EnablePin=ENABLE; // Enable LCD
+                   CLCD_ControlEnablePin(GPIO_High); // Set enable pin high
 
-                   }
-                   else
-                   {
-                       CLCD_EnablePin=DISABLE; // Disable LCD
-                       CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
+                }
+               else
+               {
+                   CLCD_EnablePin=DISABLE; // Disable LCD
+                   CLCD_ControlEnablePin(GPIO_Low); // Set enable pin low
 
-
-                   }
+                    if(CLCD_PartCount==CLCD_SECOND_PART)
+                    {
+                        CLCD_PartCount=CLCD_FIRST_PART;
+                    }
+               }
            	}
        		else
        		{

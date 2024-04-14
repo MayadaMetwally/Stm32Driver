@@ -62,17 +62,17 @@
 * Options:                                                                                                                                    
 *      1- HLCD_DISABLE                                                     
 *      2- HLCD_ENABLE                                                                                                           */
-#define HLCD_CURSER                 HLCD_DISABLE
+#define HLCD_CURSER                 HLCD_ENABLE
 
 
 /* Enable or Disable the blinking of the curser 
 * Options:                                                                                                                                    
 *      1- HLCD_DISABLE                                                     
 *      2- HLCD_ENABLE                                                                                                 */
-#define HLCD_BLINKING               HLCD_DISABLE
+#define HLCD_BLINKING               HLCD_ENABLE
 
 
-#define LCD_BUFFERSIZE               10
+#define LCD_BUFFERSIZE               30
 
 
 typedef struct {

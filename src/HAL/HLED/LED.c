@@ -17,7 +17,6 @@ extern  const LEDSCfg_tstr LEDS[_LED_NUM];
 tenu_ErrorStatus HLED_Init(void)
 {
 	tenu_ErrorStatus Local_ErrorStatus=LBTY_OK;
-	MRCC_ControlClockAHP1Peripheral(RCC_AHB1_GPIOB,RCC_ENABLE);
 	GPIO_Pin_tstr PIN;
 	PIN.Mode=GPIO_MODE_OP_PP;
 	PIN.Speed=GPIO_SPEED_HIGH;

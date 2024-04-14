@@ -121,6 +121,23 @@ typedef enum
 	
 }USART_status_tenu;
 
+typedef enum {
+	USART_OK,
+	USART_BaudRateError,
+	USART_WordSizeError,
+	USART_ParityControlError,
+	USART_ParitySelectionError,
+	USART_TransmitterControlError,
+	USART_ReceiverControlError,
+	USART_ControlEnableError,
+	USART_StopBitsError,
+	USART_OverSamplingError,
+	USART_UsartSelectError,
+	USART_NullConfPointer
+
+
+}USART_enuErrorStatus;
+
 
 /********************************************************************************************************/
 /************************************************APIs****************************************************/
@@ -131,7 +148,7 @@ typedef enum
  * @param ConfigPtr Pointer to USART configuration structure
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_Init(const USART_strCfg_t *ConfigPtr);
+USART_enuErrorStatus USART_Init(const USART_strCfg_t *ConfigPtr);
 
 /**
  * @brief Send a byte synchronously
@@ -140,7 +157,7 @@ tenu_ErrorStatus USART_Init(const USART_strCfg_t *ConfigPtr);
  * @param Copy_Data Byte to be sent
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_SendBytesynchronous(void *Channel, u8 Copy_Data);
+USART_enuErrorStatus USART_SendBytesynchronous(void *Channel, u8 Copy_Data);
 
 /**
  * @brief Receive a byte synchronously
@@ -149,7 +166,7 @@ tenu_ErrorStatus USART_SendBytesynchronous(void *Channel, u8 Copy_Data);
  * @param Copy_Data Pointer to store received byte
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_ReceiveBytesynchronous(void *Channel, u8 *Copy_Data);
+USART_enuErrorStatus USART_ReceiveBytesynchronous(void *Channel, u8 *Copy_Data);
 
 /**
  * @brief Send a byte asynchronously
@@ -158,7 +175,7 @@ tenu_ErrorStatus USART_ReceiveBytesynchronous(void *Channel, u8 *Copy_Data);
  * @param Copy_Data Byte to be sent
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_SendByteAsynchronous(void *Channel, u8 Copy_Data);
+USART_enuErrorStatus USART_SendByteAsynchronous(void *Channel, u8 Copy_Data);
 
 /**
  * @brief Receive data into buffer
@@ -166,7 +183,7 @@ tenu_ErrorStatus USART_SendByteAsynchronous(void *Channel, u8 Copy_Data);
  * @param ReceiveBuffer Pointer to receive buffer configuration
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_ReceiveBuffer(USART_RXBuffer *ReceiveBuffer);
+USART_enuErrorStatus USART_ReceiveBufferAsynchronous(USART_RXBuffer *ReceiveBuffer);
 
 /**
  * @brief Send data from buffer with zero-copy
@@ -174,7 +191,7 @@ tenu_ErrorStatus USART_ReceiveBuffer(USART_RXBuffer *ReceiveBuffer);
  * @param Copy_ConfigBuffer Pointer to transmit buffer configuration
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_SendBufferZeroCopy(USART_TXBuffer *Copy_ConfigBuffer);
+USART_enuErrorStatus USART_SendBufferZeroCopy(USART_TXBuffer *Copy_ConfigBuffer);
 
 /**
  * @brief Register callback function for USART mode
@@ -183,9 +200,11 @@ tenu_ErrorStatus USART_SendBufferZeroCopy(USART_TXBuffer *Copy_ConfigBuffer);
  * @param CallBackFunction Pointer to callback function
  * @return tenu_ErrorStatus Error status
  */
-tenu_ErrorStatus USART_RegisterCallBackFunction(USART_Mode Mode, CallBack CallBackFunction);
+USART_enuErrorStatus USART_RegisterCallBackFunction(USART_Mode Mode, CallBack CallBackFunction);
 
 
+USART_enuErrorStatus USART_SendByteSynchByTime(void *Channel, u8 Copy_Data);
 
+USART_enuErrorStatus USART_ReceiveByteSynchByTime(void *Channel, u8 *Copy_Data);
 
 #endif //MCAL_MUSART_USART_H_

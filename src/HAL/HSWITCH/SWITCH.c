@@ -67,9 +67,6 @@ void HSWITCH_Runnable(void)
 		}
 		Local_Prev[idx]=Local_Current;
 	}
-	
-
-
 
 
 }
