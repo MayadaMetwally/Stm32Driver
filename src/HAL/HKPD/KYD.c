@@ -10,6 +10,9 @@
 #define INIT               0
 #define PRESSED            1
 #define NOT_PRESSED        2
+#define NOT_SW_PRESSED     0
+#define NEW_VALUE          1
+#define OLD_VLAUE          0
 
 extern tstr_KPDPinConfiguration KPD_Conf;
 static char KPDPressedKey=0;
@@ -48,7 +51,7 @@ tenu_ErrorStatus KPD_INIT(void)
 void KPD_Runnable(void)
 {
 	u8 Local_Current=2;
-	//u8 Local_CurrentStatus =0;
+	
 	u8 Local_CurrentPreesedKey=0;
 	/*define variable to loop on all col pins */
 	u8 Local_u8Index1=0;
@@ -57,15 +60,15 @@ void KPD_Runnable(void)
 	
 
 	static u8 Local_State[KPD_NUMBER_OF_ROWS*KPD_NUMBER_OF_COLUMNS]={INIT};
-	//static u8 Local_Counts[KPD_NUMBER_OF_ROWS][KPD_NUMBER_OF_COLUMNS]={0};
+	
 	/*local array to store keypad name that user entered it in configuration*/
 	u8 Local_u8KpdArr[KPD_NUMBER_OF_ROWS][KPD_NUMBER_OF_COLUMNS] = KPD_ARRAY;
-	for(Local_u8Index1=0;(Local_u8Index1<KPD_NUMBER_OF_COLUMNS&&Local_CurrentPreesedKey==0);Local_u8Index1++)
+	for(Local_u8Index1=0;(Local_u8Index1<KPD_NUMBER_OF_COLUMNS&&Local_CurrentPreesedKey==NOT_SW_PRESSED);Local_u8Index1++)
 	{
 		/*define col pin as output low */
 		MGPIO_SetPin(KPD_Conf.ColPortNumber[Local_u8Index1],KPD_Conf.ColPinNumber[Local_u8Index1],GPIO_Low);
 		/*read the current row (pressed--->low) (not pressed--->high)*/
-		for(Local_u8Index2=0;(Local_u8Index2<KPD_NUMBER_OF_ROWS&&Local_CurrentPreesedKey==0);Local_u8Index2++)
+		for(Local_u8Index2=0;(Local_u8Index2<KPD_NUMBER_OF_ROWS&&Local_CurrentPreesedKey==NOT_SW_PRESSED);Local_u8Index2++)
 		{
 
 			/*check if switch is pressed */
@@ -118,7 +121,7 @@ void KPD_Runnable(void)
 	if(Local_CurrentPreesedKey!=KPDPressedKey)
 	{
 		KPDPressedKey=Local_CurrentPreesedKey;
-		NewValueflag=1;
+		NewValueflag=NEW_VALUE;
 	}
 	else
 	{
@@ -135,14 +138,14 @@ tenu_ErrorStatus KPD_GetPressedKey(u8 *Copy_pu8Key)
 	/*check if a NULL pointer is provided as input*/
 	if(Copy_pu8Key!=NULL)
 	{
-		if((NewValueflag==1)&&(KPDPressedKey!=0))
+		if((NewValueflag==NEW_VALUE)&&(KPDPressedKey!=NOT_SW_PRESSED))
 		{
 			*Copy_pu8Key=KPDPressedKey;
-			NewValueflag=0;
+			NewValueflag=OLD_VLAUE;
 		}
 		else
 		{
-			*Copy_pu8Key=0;
+			*Copy_pu8Key=NOT_SW_PRESSED;
 		}
 
 	}

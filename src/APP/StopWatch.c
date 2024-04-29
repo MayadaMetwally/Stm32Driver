@@ -1,16 +1,15 @@
 #include "STD_TYPES.h"
 #include "APP/Receiver.h"
 #include "HCLCD/LCD.h"
-#include "HLED/LED.h"
+
 
 
 typedef struct 
 {
-    u8 Hrs;
-    u8 Mins;
-    u8 Secs;
-    u16 Ms;
-    u8  Seperator;
+     u8 Hrs;
+     u8 Mins;
+     u8 Secs;
+     u16 Ms;
 }Stopwatch_Time;
 
 extern RecType_tstr ReceiveType;
@@ -19,8 +18,9 @@ extern RecType_tstr ReceiveType;
 void Stopwatch_Runnable(void)
 {
     
-    u8 Stopwatch_On=0;
-    Stopwatch_Time SW_Time={0,0,0,0, ":"};
+    
+    static u8 Stopwatch_On=0;
+    static Stopwatch_Time SW_Time={0,0,0,0};
 
     if( (ReceiveType.Mode == STOP_WATCH_MODE))
     {
@@ -30,7 +30,7 @@ void Stopwatch_Runnable(void)
     if (Stopwatch_On && ( (ReceiveType.StopWatchOperation == STOP_WATCH_MODE_ACTION_START) || (ReceiveType.StopWatchOperation == STOP_WATCH_MODE_ACTION_CONTINUE)) )
     {   
         //HLED_SetStatus(LED_RED,LED_ON);
-        SW_Time.Ms += 500;
+        SW_Time.Ms += 200;
         if(SW_Time.Ms == 1000)
         {
             SW_Time.Ms = 0;

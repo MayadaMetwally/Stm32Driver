@@ -1,549 +1,511 @@
-/**************************************************************************************************************
- *************************            File Name: RCC.c                                 ************************
- *************************            Layer	   : MCAL                                  ************************
- *************************            Module   : RCC                                   ************************
- *************************            Version  : V 0.0                                 ************************
- *************************            Created  : 2/4/2023                              ************************
- *************************            Author   : Mayada Metwally                       ************************
- *************************    Brief: This source file implements functions for RCC driver**********************.
- **************************************************************************************************************/
-
-#include "STD_TYPES.h"
+/***************************************************************************************************************************/
+/* File Name:	RCC.c                                                                                                      */
+/* Module	: 	RCC						                                                                                   */
+/* Layer	:	MCAL										                                                               */
+/* AUTHOR   :   Lina Nassar                                                                                                */
+/* Date     :   10/2/2024                                                                                                  */
+/***************************************************************************************************************************/
 
 
-#include "MRCC/RCC_Reg.h"
-#include "MRCC/RCC_Private.h"
-#include "MRCC/RCC_Cfg.h"
 #include "MRCC/RCC.h"
 
-/**************************************Enable peripheral clk***********************************************/
-tenu_ErrorStatus MRCC_EnablePeripheralClock(u8 BusId,u8 PerId)
+/*Rcc base address*/
+#define RCC_Add              0x40023800
+
+/*System Clock*/
+#define SysClock_Mask        0x00000003
+
+/*PLL Source Clock*/
+#define PLLSrc_Mask          Reg_Mask_bit22
+
+/*Clock Read bit masks*/
+#define ClockRdy_HSI_Mask    Reg_Mask_bit1
+#define ClockRdy_HSE_Mask    Reg_Mask_bit17
+#define ClockRdy_PLL_Mask    Reg_Mask_bit25
+
+/*PLL Parameters Shift Bits*/
+#define PLLM_ShiftBits       Reg_bit0
+#define PLLN_ShiftBits       Reg_bit6
+#define PLLP_ShiftBits       Reg_bit16
+#define PLLQ_ShiftBits       Reg_bit24
+
+/*PLL Parameters Masks*/
+#define PLLM_Mask           0x0000001F
+#define PLLN_Mask           0x000003E0
+#define PLLP_Mask           0x00030000
+#define PLLQ_Mask           0x0F000000
+
+
+/*PLL Parameter Boundaries*/
+#define PLL_MMin        2
+#define PLL_MMax        63
+#define PLL_NMin        192
+#define PLL_NMax        432
+#define PLL_PMin        0
+#define PLL_PMax        3
+#define PLL_QMin        2
+#define PLL_QMax        15
+
+/*Clock Frequencies*/
+#define HSI_Freq        16   
+#define HSE_Freq        25
+
+
+
+
+/*Peripherals Prescalers Mask*/
+#define PreSc_AHB_Mask      0xF0  
+#define PreSc_APB1_Mask     0x1C00
+#define PreSc_APB2_Mask     0xE000
+#define PreSc_RTC_Mask      0x1F0000
+#define PreSc_MCO1_Mask     0x7000000
+#define PreSc_MCO2_Mask     0x38000000
+
+/*Prescalers Parameters Shift Bits*/
+#define PeriPresc_AHB_Mask     Reg_bit4   
+#define PeriPresc_APB1_Mask    Reg_bit10
+#define PeriPresc_APB2_Mask    Reg_bit13
+#define PeriPresc_RTC_Mask     Reg_bit16 
+#define PeriPresc_MCO1_Mask    Reg_bit24 
+#define PeriPresc_MCO2_Mask    Reg_bit27
+
+
+
+typedef struct
 {
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	if(PerId<=RCC_LPAHB2)
-	{
-	    switch(BusId)
-	    {
-	        case RCC_AHB1   : RCC_AHB1ENR   |=(PerId);  break;
-	        case RCC_AHB2   : RCC_AHB2ENR   |=(PerId);  break;
-	        case RCC_APB1   : RCC_APB1ENR   |=(PerId);  break;
-	        case RCC_APB2   : RCC_APB2ENR   |=(PerId);  break;
-	        case RCC_LPAHB1 : RCC_AHB1LPENR |=(PerId);  break;
-	        case RCC_LPAHB2 : RCC_AHB2LPENR |=(PerId);  break;
-	        case RCC_LPAPB1 : RCC_APB1LPENR |=(PerId);  break;
-	        case RCC_LPAPB2 : RCC_APB2LPENR |=(PerId);  break;
-	        default: /* invalid input, return error */
-	        	Local_tenuErrorStatus = LBTY_NOK;
-	    }
+    uint32_t CR;   
+    uint32_t PLLCFGR;
+    uint32_t CFGR;    
+    uint32_t CIR;   
+    uint32_t AHB1RSTR; 
+    uint32_t AHB2RSTR; 
+    uint32_t reserved0;    
+    uint32_t reserved1;
+    uint32_t APB1RSTR; 
+    uint32_t APB2RSTR; 
+    uint32_t reserved2; 
+    uint32_t reserved3; 
+    uint32_t AHB1ENR;    
+    uint32_t AHB2ENR;
+    uint32_t reserved4;
+    uint32_t reserved5;
+    uint32_t APB1ENR; 
+    uint32_t APB2ENR; 
+    uint32_t reserved6;
+    uint32_t reserved7;    
+    uint32_t AHB1LPENR;    
+    uint32_t AHB2LPENR;
+    uint32_t reserved8;
+    uint32_t reserved9;
+    uint32_t APB1LPENR;
+    uint32_t APB2LPENR;
+    uint32_t reserved10;
+    uint32_t reserved11;
+    uint32_t BDCR;
+    uint32_t CSR;
+    uint32_t reserved12;
+    uint32_t reserved13;
+    uint32_t SSCGR;
+    uint32_t PLLI2SCFGR;
+    uint32_t reserved14;
+    uint32_t DCKCFGR;
+}RCC_Reg_t;
+ 
 
-	}
-	else
-	{
-		/* invalid input, return error */
-		Local_tenuErrorStatus = LBTY_NOK;
-	}
+/*Global Variables*/
+static RCC_Reg_t * const RCC = (volatile RCC_Reg_t * const)(RCC_Add);
 
 
-	return Local_tenuErrorStatus;
-}
-/**************************************Disable peripheral clk**********************************************/
-tenu_ErrorStatus MRCC_DisablePeripheralClock(u8 BusId,u8 PerId)
+/*Static Functions Prototypes*/
+//static void RCC_GetSysClock(uint32_t * SysClock);
+
+
+RCC_errors_t RCC_ControlClock(uint32_t Clock, uint8_t CLockStatus)
 {
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	if(PerId< RCC_LPAHB2)
-	{
-	    switch(BusId)
-	    {
-        case RCC_AHB1   : RCC_AHB1ENR   &=(~(PerId));  break;
-        case RCC_AHB2   : RCC_AHB2ENR   &=(~(PerId));  break;
-        case RCC_APB1   : RCC_APB1ENR   &=(~(PerId));  break;
-        case RCC_APB2   : RCC_APB2ENR   &=(~(PerId));  break;
-        case RCC_LPAHB1 : RCC_AHB1LPENR &=(~(PerId));  break;
-        case RCC_LPAHB2 : RCC_AHB2LPENR &=(~(PerId));  break;
-        case RCC_LPAPB1 : RCC_APB1LPENR &=(~(PerId));  break;
-        case RCC_LPAPB2 : RCC_APB2LPENR &=(~(PerId));  break;
-	        default: /* invalid input, return error */
-	        	Local_tenuErrorStatus = LBTY_NOK;
-	    }
-
-	}
-	else
-	{
-		/* invalid input, return error */
-		Local_tenuErrorStatus = LBTY_NOK;
-	}
-
-	return Local_tenuErrorStatus;
-
-}
-/*************************************Control AHP1 peripheral clk(Enable/Disable) ************************/
-tenu_ErrorStatus MRCC_ControlClockAHP1Peripheral(u32 AHB1Peripheral,u8 Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32Temp=RCC_AHB1ENR;  /* Assign register to local value */
-	if(AHB1Peripheral<=RCC_AHB1_DMA2) /*Check if Input Peripheral is valid or not */
-	{
-		switch(Status)
-		{
-		case RCC_ENABLE:
-			//Local_u32Temp &=~(AHB1Peripheral);
-			Local_u32Temp |=AHB1Peripheral; /* Enable peripheral */
-			RCC_AHB1ENR=Local_u32Temp;    /* update value in register */
-			break;
-		case RCC_DISABLE:
-			Local_u32Temp &=~(AHB1Peripheral);
-			RCC_AHB1ENR=Local_u32Temp;    /* update value in register */
-			break;
-		default:
-			Local_tenuErrorStatus = LBTY_OK; /* Input Status is not valid */
-		}
-	}
-	else
-	{
-		Local_tenuErrorStatus = LBTY_NOK; /* Input Peripheral is not valid */
-	}
-
-	return Local_tenuErrorStatus;
-}
-/*************************************Control AHP2 peripheral clk(Enable/Disable) ************************/
-tenu_ErrorStatus MRCC_ControlClockAHP2Peripheral(u32 AHB2Peripheral,u8 Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32Temp=RCC_AHB2ENR;  /* Assign register to local value */
-		if(AHB2Peripheral==RCC_AHB2_OTGFS) /*Check if Input Peripheral is valid or not */
-		{
-			switch(Status)
-			{
-			case RCC_ENABLE:
-				//Local_u32Temp &=~(AHB2Peripheral);
-				Local_u32Temp |=AHB2Peripheral; /* Enable peripheral */
-				RCC_AHB2ENR=Local_u32Temp;    /* update value in register */
-				break;
-			case RCC_DISABLE:
-				Local_u32Temp &=~(AHB2Peripheral);
-				RCC_AHB2ENR=Local_u32Temp;    /* update value in register */
-				break;
-			default:
-				Local_tenuErrorStatus = LBTY_OK; /* Input Status is not valid */
-			}
-		}
-		else
-		{
-			Local_tenuErrorStatus = LBTY_OK; /* Input Peripheral is not valid */
-		}
-
-	return Local_tenuErrorStatus;
-}
-/*************************************Control ABP1 peripheral clk(Enable/Disable) ************************/
-tenu_ErrorStatus MRCC_ControlClockABP1Peripheral(u32 APB1Peripheral,u8 Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32Temp=RCC_APB1ENR;  /* Assign register to local value */
-		if(APB1Peripheral<=RCC_APB1_PWR) /*Check if Input Peripheral is valid or not */
-		{
-			switch(Status)
-			{
-			case RCC_ENABLE:
-				//Local_u32Temp &=~(APB1Peripheral);
-				Local_u32Temp |=APB1Peripheral; /* Enable peripheral */
-				RCC_APB1ENR=Local_u32Temp;    /* update value in register */
-				break;
-			case RCC_DISABLE:
-				Local_u32Temp &=~(APB1Peripheral);
-				RCC_APB1ENR=Local_u32Temp;    /* update value in register */
-				break;
-			default:
-				Local_tenuErrorStatus = LBTY_OK; /* Input Status is not valid */
-			}
-		}
-		else
-		{
-			Local_tenuErrorStatus = LBTY_OK; /* Input Peripheral is not valid */
-		}
-
-	return Local_tenuErrorStatus;
-
-}
-/*************************************Control ABP2 peripheral clk(Enable/Disable) ************************/
-tenu_ErrorStatus MRCC_ControlClockABP2Peripheral(u32 APB2Peripheral,u8 Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32Temp=RCC_AHB1ENR;  /* Assign register to local value */
-		if(APB2Peripheral<=RCC_AHB1_DMA2) /*Check if Input Peripheral is valid or not */
-		{
-			switch(Status)
-			{
-			case RCC_ENABLE:
-				//Local_u32Temp &=~(APB2Peripheral);
-				Local_u32Temp |=APB2Peripheral; /* Enable peripheral */
-				RCC_APB2ENR=Local_u32Temp;    /* update value in register */
-				break;
-			case RCC_DISABLE:
-				Local_u32Temp &=~(APB2Peripheral);
-				RCC_APB2ENR=Local_u32Temp;    /* update value in register */
-				break;
-			default:
-				Local_tenuErrorStatus = LBTY_OK; /* Input Status is not valid */
-			}
-		}
-		else
-		{
-			Local_tenuErrorStatus = LBTY_OK; /* Input Peripheral is not valid */
-		}
-
-	return Local_tenuErrorStatus;
-
-}
-/*************************************Control Clock(Enable/Disable) *************************************/
-tenu_ErrorStatus MRCC_ControlClock(u8 SystemName,u8 Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32Var = RCC_CR;                       /* Assign register to local value */
-	switch(SystemName)
-	{
-	case RCC_CLOCK_HSI:
-		switch(Status)
-		{
-		case RCC_ENABLE :
-	    	Local_u32Var &=~(RCC_HSI_ENABLE_MASK); /* Clearing specific bit */
-	    	Local_u32Var |= RCC_HSI_ENABLE_MASK;   /* Enable peripheral */
-	    	RCC_CR=Local_u32Var;                   /* update value in register */
-			break;
-		case RCC_DISABLE:
-	    	Local_u32Var &=~(RCC_HSI_ENABLE_MASK);  /* Clearing specific bit */
-	    	RCC_CR=Local_u32Var;                   /* update value in register */
+    //uint8_t  Loc_SysClockVal, Loc_AllowDisableFlag=1;
+    uint32_t Loc_RegisterTempVal;
+    RCC_errors_t Ret_ControlClock = RCC_enuOk;
+    
+    if ((Clock == Clock_HSI) || (Clock == Clock_HSE) || (Clock == Clock_PLL) || (Clock == Clock_PLLI2S) || (Clock == Clock_RTC))
+    {
+        switch (CLockStatus)
+        {
+        case ClockStatus_Enable:
+            if (Clock == Clock_RTC){
+                Loc_RegisterTempVal= RCC->BDCR;     /*Make a copy of Reg value*/
+                Loc_RegisterTempVal &= (~Clock);    /*Clear Bit*/
+                Loc_RegisterTempVal |= (Clock);     /*Set bit*/
+                RCC->BDCR= Loc_RegisterTempVal;     /*Apply value to Reg*/
+            }
+            else{
+                Loc_RegisterTempVal= RCC->CR;
+                Loc_RegisterTempVal &= (~Clock);
+                Loc_RegisterTempVal |= (Clock);
+                RCC->CR= Loc_RegisterTempVal;
+            }
             break;
-		default         : Local_tenuErrorStatus = LBTY_NOK;
 
-		}
-		break;
-   case RCC_CLOCK_HSE_CRUSTAL:
-	    switch(Status)
-	    {
-	    case RCC_ENABLE : RCC_CR |=(1<<RCC_HSE_ENABLE_MASK);	         break;
-	    case RCC_DISABLE: RCC_CR &=(~(1<<RCC_HSE_ENABLE_MASK));	         break;
-	    default         : Local_tenuErrorStatus = LBTY_NOK;
+        case ClockStatus_Disable:
+            if (Clock == Clock_RTC)
+            {
+                Loc_RegisterTempVal= RCC->BDCR;
+                Loc_RegisterTempVal &= (~Clock);
+                RCC->BDCR= Loc_RegisterTempVal;
+            }
+            else
+            {
+                Loc_RegisterTempVal= RCC->CR;
+                Loc_RegisterTempVal &= (~Clock);
+                RCC->CR= Loc_RegisterTempVal;
+            }
+            break;
 
-	    }
+        default:
+            Ret_ControlClock= RCC_enuWrongStatus;
+            break;
+        }
+    }
+    else
+    {
+        Ret_ControlClock = RCC_enuClockNotFound;
+    }
+    
+    return Ret_ControlClock;
+}
+
+RCC_errors_t RCC_ConfigurePLL(uint32_t PLLSrc, uint32_t PLLM, uint32_t PLLN, uint16_t PLLP, uint32_t PLLQ )
+{
+    RCC_errors_t Ret_CfgPLL= RCC_enuOk;
+    uint32_t Loc_RegTempValue;
+    uint8_t Loc_PLLSrcFreq, f_VCO_IP, f_VCO_OP, f_PLL_Gen, f_USB;
+    
+
+    /*Check if PLL is on*/
+    if (RCC->CR & Clock_PLL)
+    {
+        Ret_CfgPLL= RCC_enuPLLisEnabled;
+    }
+    else
+    {
+        /*Check Input Parameters*/
+        if(!(PLLSrc == PLLSrc_HSE || PLLSrc == PLLSrc_HSI))
+        {
+            Ret_CfgPLL = RCC_enuParameterOutofRange;
+        }
+        else if(!((PLLM >= PLL_MMin) && (PLLM <= PLL_MMax)))
+        {
+            Ret_CfgPLL= RCC_enuParameterOutofRange;
+        }
+        else if(!((PLLN >= PLL_NMin) && (PLLN <= PLL_NMax)))
+        {
+            Ret_CfgPLL= RCC_enuParameterOutofRange;
+        }
+        else if(!((PLLP >= PLL_PMin) && (PLLP <= PLL_PMax)))
+        {
+            Ret_CfgPLL= RCC_enuParameterOutofRange;
+        }
+        else if(!((PLLQ >= PLL_QMin) && (PLLQ <= PLL_QMax)))
+        {
+            Ret_CfgPLL= RCC_enuParameterOutofRange;
+        }
+        else
+        {
+            switch (PLLSrc)
+            {
+            case PLLSrc_HSE:
+                Loc_PLLSrcFreq = HSE_Freq;
+                break;
+
+            case PLLSrc_HSI:
+                Loc_PLLSrcFreq = HSI_Freq;
+                break;
+
+            default:
+                break;
+            }         
+
+            /*Calcualte Frequencies*/
+            f_VCO_IP = Loc_PLLSrcFreq/PLLM;
+            f_VCO_OP = f_VCO_IP * PLLN;
+            f_PLL_Gen = f_VCO_OP / PLLP;
+            f_USB = f_VCO_OP / PLLQ;
+
+            /*Check Frequency Ranges*/
+            /* f(VCO I/P) */
+            if( (f_VCO_IP<1) || (f_VCO_IP>2) )
+            {
+                Ret_CfgPLL= RCC_enuFreqOutofRange;
+            }
+            /* f(VCO O/P) */
+            else if( (f_VCO_OP<192) || (f_VCO_OP>432) )
+            {
+                Ret_CfgPLL= RCC_enuFreqOutofRange;
+            }
+            /*  f(PLL general clock output) */
+            else if(f_PLL_Gen>84)
+            {
+                Ret_CfgPLL= RCC_enuFreqOutofRange;
+            }
+            /*  f(USB OTG FS, SDIO, RNG clock output) */
+            else if(f_USB!=48)
+            {
+                Ret_CfgPLL= RCC_enuFreqOutofRange;
+            }
+        }
+    }
+
+    if (Ret_CfgPLL== RCC_enuOk) /*Configure PLL*/
+    {
+        /*Set PLL Source*/
+        Loc_RegTempValue= RCC->PLLCFGR;
+        Loc_RegTempValue &= (~PLLSrc_Mask);
+        Loc_RegTempValue |= PLLSrc;
+        RCC->CFGR= Loc_RegTempValue;
+
+        /*Set PLLM, PLLN, PLLP, PLLQ*/
+        Loc_RegTempValue= RCC->PLLCFGR;
+        Loc_RegTempValue &= (~PLLM_Mask);
+        Loc_RegTempValue &= (~PLLN_Mask);
+        Loc_RegTempValue &= (~PLLP_Mask);
+        Loc_RegTempValue &= (~PLLQ_Mask);
+        Loc_RegTempValue |= ((PLLM << PLLM_ShiftBits) | (PLLN << PLLN_ShiftBits) | (PLLQ << PLLQ_ShiftBits) | (PLLP << PLLP_ShiftBits));
+
+    }
+    return Ret_CfgPLL; 
+}  
+
+RCC_errors_t RCC_ConfigureSysClock(uint32_t SysClock)
+{
+    RCC_errors_t Ret_CfgSysClk= RCC_enuOk;
+    uint32_t Loc_RegTempValue, Loc_AllowSysClkCfg=0;
+
+    switch (SysClock)
+    {
+    case SysClock_HSI:
+        Loc_AllowSysClkCfg= RCC->CR&ClockRdy_HSI_Mask;
         break;
-   case RCC_CLOCK_HSE_RC:
-	    switch(Status)
-	    {
-	    case RCC_ENABLE :
-	    	Local_u32Var &=~(RCC_HSE_RC_ENABLE_MASK); /* Clearing specific bit */
-	    	Local_u32Var |= RCC_HSE_RC_ENABLE_MASK;   /* Enable peripheral */
-	    	RCC_CR=Local_u32Var;                      /* update value in register */
+    case SysClock_HSE:
+        Loc_AllowSysClkCfg= RCC->CR&ClockRdy_HSE_Mask;
+        break;
+    case SysClock_PLL:
+        Loc_AllowSysClkCfg= RCC->CR&ClockRdy_PLL_Mask;
+        break;
+    default:
+        Ret_CfgSysClk= RCC_enuClockNotFound;
+        break;
+    }     
+    if(Loc_AllowSysClkCfg)
+    {
+        Loc_RegTempValue= RCC->CFGR;
+        Loc_RegTempValue &= (~SysClock_Mask);
+        Loc_RegTempValue |= SysClock;
+        RCC->CFGR= Loc_RegTempValue;
+    }
+    else
+    {
+        Ret_CfgSysClk= RCC_enuClockNotRdy;
+    }
 
-	    	break;
-	    case RCC_DISABLE:
-	    	Local_u32Var &=~(RCC_HSE_RC_ENABLE_MASK); /* Clearing specific bit */
-	    	RCC_CR=Local_u32Var;                      /* update value in register */
-	    	break;
-	    default         : Local_tenuErrorStatus = LBTY_NOK;
-
-	    }
-	    break;
-	case RCC_CLOCK_PLL:
-	 	 switch(Status)
-	 	  {
-	 	  case RCC_ENABLE :	 RCC_CR |=(1<<RCC_PLL_ENABLE_MASK);       break;
-	 	  case RCC_DISABLE:	 RCC_CR &=(~(1<<RCC_PLL_ENABLE_MASK));    break;
-	 	  default         :  Local_tenuErrorStatus = LBTY_NOK;
-
-	 	   }
-	 	   break;
-	default : Local_tenuErrorStatus = LBTY_NOK;
-	}
-	return Local_tenuErrorStatus;
-
+    return Ret_CfgSysClk;
 }
 
-/**************************************CHECK HSI STATUS*************************************************/
-tenu_ErrorStatus MRCC_CheckHSIStatus(u8 *Status)
+RCC_errors_t RCC_ControlPeripheralClock(uint64_t Peri, uint32_t PeriStatus, uint32_t PowerMode )
 {
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	s32 Local_u32TimeOut=TIME_OUT;
-	while((((RCC_CR>>HSI_RDY)&ONE)==ZERO)|| (Local_u32TimeOut>ZERO))
-	{
-		Local_u32TimeOut--;
-	}
-	if((TIME_OUT==ZERO)&&((RCC_CR>>HSI_RDY)&1)==ZERO)
-		{
-		Local_tenuErrorStatus = LBTY_NOK;
-		*Status=RCC_CLK_NOT_READY;
+    RCC_errors_t Ret_CtrlPeri= RCC_enuOk;
+    uint8_t Loc_PerSwitch;
+    uint32_t Loc_RegTempValue=0;
 
-		}
-	else
-	{
-		Local_tenuErrorStatus = LBTY_OK;
-		*Status=RCC_CLK_READY;
+    /*Check Peripheral*/
+    if(Peri < 0xFFFFFFFF)
+    {
+        Ret_CtrlPeri= RCC_enuPeriNotFound;
+    }
+    else if((PeriStatus<0) || (PeriStatus>1))
+    {
+        Ret_CtrlPeri= RCC_enuWrongStatus;
+    }
+    else if((PowerMode<0) || (PowerMode>1))
+    {
+        Ret_CtrlPeri= RCC_enuWrongPwrMod;
+    }
+    else
+    {
+        Loc_PerSwitch=(Peri >> 32);
 
-	}
-	return Local_tenuErrorStatus;
+        switch (PowerMode)
+        {
+        case PowerMode_Normal:
+            switch (PeriStatus)
+            {
+            case PeriStatus_Enable:
+                switch (Loc_PerSwitch)
+                {
+                case AHB1_Code:
+                    Loc_RegTempValue=RCC->AHB1ENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->AHB1ENR = Loc_RegTempValue;
+                    break;
+                case AHB2_Code:
+                    Loc_RegTempValue=RCC->AHB2ENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->AHB2ENR = Loc_RegTempValue;
+                    break;
+                case APB1_Code:
+                    Loc_RegTempValue=RCC->APB1ENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->APB1ENR = Loc_RegTempValue;
+                    break;
+                case APB2_Code:
+                    Loc_RegTempValue=RCC->APB2ENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->APB2ENR = Loc_RegTempValue;
+                    break;
+                default:
+                    break;
+                }
+            break;
 
-}
-/**************************************CHECK HSE STATUS*************************************************/
-tenu_ErrorStatus MRCC_CheckHSEStatus(u8 *Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	s32 Local_u32TimeOut=TIME_OUT;
-	while((((RCC_CR>>HSE_RDY)&1)==ZERO)|| (Local_u32TimeOut>ZERO))
-	{
-		Local_u32TimeOut--;
-	}
-	if((TIME_OUT==ZERO)&&((RCC_CR>>PLL_RDY)&1)==ZERO)
-		{
-		Local_tenuErrorStatus = LBTY_NOK;
-		*Status=RCC_CLK_NOT_READY;
+            case PeriStatus_Disable:
+                
+                switch (Loc_PerSwitch)
+                {
+                case AHB1_Code:
+                    Loc_RegTempValue= RCC->AHB1ENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->AHB1ENR= Loc_RegTempValue;
+                    break;
+                case AHB2_Code:
+                    Loc_RegTempValue= RCC->AHB2ENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->AHB2ENR= Loc_RegTempValue;
+                    break;
+                case APB1_Code:
+                    Loc_RegTempValue=RCC->APB1ENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->APB1ENR= Loc_RegTempValue;
+                    break;
+                case APB2_Code:
+                    Loc_RegTempValue=RCC->APB2ENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->APB2ENR= Loc_RegTempValue;
+                    break;
+                default:
+                    break;
+                }
 
-		}
-	else
-	{
-		Local_tenuErrorStatus = LBTY_OK;
-		*Status=RCC_CLK_READY;
+            break;
+            }
 
-	}
+        break;
+        
+        case PowerMode_LowPwr:
+            switch (PeriStatus)
+            {
+            case PeriStatus_Enable:
+                switch (Loc_PerSwitch)
+                {
+                case AHB1_Code:
+                    Loc_RegTempValue=RCC->AHB1LPENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->AHB1LPENR= Loc_RegTempValue;
+                    break;
+                case AHB2_Code:
+                    Loc_RegTempValue=RCC->AHB2LPENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->AHB2LPENR= Loc_RegTempValue;
+                    break;
+                case APB1_Code:
+                    Loc_RegTempValue=RCC->APB1LPENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->APB1LPENR= Loc_RegTempValue;
+                    break;
+                case APB2_Code:
+                    Loc_RegTempValue=RCC->APB2LPENR;
+                    Loc_RegTempValue |= ((uint32_t)Peri);
+                    RCC->APB2LPENR= Loc_RegTempValue;
+                    break;
+                default:
+                    break;
+                }
+            break;
 
+            case PeriStatus_Disable:
+                
+                switch (Loc_PerSwitch)
+                {
+                case AHB1_Code:
+                    Loc_RegTempValue=RCC->AHB1LPENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->AHB1LPENR= Loc_RegTempValue;
+                    break;
+                case AHB2_Code:
+                    Loc_RegTempValue=RCC->AHB2LPENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->AHB2LPENR= Loc_RegTempValue;
+                    break;
+                case APB1_Code:
+                    Loc_RegTempValue=RCC->APB1LPENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->APB1LPENR= Loc_RegTempValue;
+                    break;
+                case APB2_Code:
+                    Loc_RegTempValue=RCC->APB2LPENR;
+                    Loc_RegTempValue &= (~((uint32_t)Peri));
+                    RCC->APB2LPENR= Loc_RegTempValue;
+                    break;
+                default:
+                    break;
+                }
 
-	return Local_tenuErrorStatus;
+            break;
+            }        
+        break;
+        
+        default:
+            break;
+        }    
+    }
 
-}
-/**************************************CHECK PLL STATUS*************************************************/
-tenu_ErrorStatus MRCC_CheckPLLStatus(u8 *Status)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	s32 Local_u32TimeOut=TIME_OUT;
-	while((((RCC_CR>>PLL_RDY)&ONE)==ZERO)|| (Local_u32TimeOut>ZERO))
-	{
-		Local_u32TimeOut--;
-	}
-	if((TIME_OUT==ZERO)&&((RCC_CR>>PLL_RDY)&1)==ZERO)
-		{
-		Local_tenuErrorStatus = LBTY_NOK;
-		*Status=RCC_CLK_NOT_READY;
-
-		}
-	else
-	{
-		Local_tenuErrorStatus = LBTY_OK;
-		*Status=RCC_CLK_READY;
-
-	}
-
-
-	return Local_tenuErrorStatus;
-
-}
-
-/******************************Function to Select System Clock******************************************/
-tenu_ErrorStatus MRCC_SelectSystemClock(u8 SystemClock)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32Var = RCC_CFGR;                       /* Assign register to local value */
-	u8 Local_u8ClockStatus =RCC_CLK_NOT_READY;
-	switch(SystemClock)
-	{
-	case RCC_SYSTEM_CLOCK_HSI:
-		Local_tenuErrorStatus=MRCC_CheckHSIStatus(&Local_u8ClockStatus);
-		if(Local_u8ClockStatus==RCC_CLK_READY)
-		{
-			Local_u32Var &=(RCC_SYSTEM_CLOCK_MASK);
-			Local_u32Var |=(RCC_HSI_SYSTEM_CLOCK_MASK);
-			RCC_CFGR=Local_u32Var;
-		}
-		else
-		{
-			Local_tenuErrorStatus = LBTY_NOK;
-		}
-		break;
-	case RCC_SYSTEM_CLOCK_HSE:
-		Local_tenuErrorStatus=MRCC_CheckHSEStatus(&Local_u8ClockStatus);
-		if(Local_u8ClockStatus==RCC_CLK_READY)
-		{
-			Local_u32Var &=(RCC_HSE_SYSTEM_CLOCK_MASK);
-			Local_u32Var |=(RCC_HSE_SYSTEM_CLOCK_MASK);
-			RCC_CFGR=Local_u32Var;
-		}
-		else
-		{
-			Local_tenuErrorStatus = LBTY_NOK;
-		}
-		break;
-	case RCC_SYSTEM_CLOCK_PLL:
-		Local_tenuErrorStatus=MRCC_CheckPLLStatus(&Local_u8ClockStatus);
-		if(Local_u8ClockStatus==RCC_CLK_READY)
-		{
-			Local_u32Var &=(RCC_PLL_SYSTEM_CLOCK_MASK);
-			Local_u32Var |=(RCC_PLL_SYSTEM_CLOCK_MASK);
-			RCC_CFGR=Local_u32Var;
-		}
-		else
-		{
-			Local_tenuErrorStatus = LBTY_NOK;
-		}
-		break;
-	default :
-		Local_tenuErrorStatus = LBTY_NOK;
-
-	}
-	return Local_tenuErrorStatus;
-
-}
-
-/******************************Function to Get System Clock*********************************************/
-tenu_ErrorStatus MRCC_GetSystemClock(u8 *SystemClock)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32SystemClock = RCC_CFGR;
-	Local_u32SystemClock &=RCC_SYSTEM_CLK_MASK;
-	Local_u32SystemClock = Local_u32SystemClock >> RCC_SWS_MASK;
-	switch(Local_u32SystemClock)
-	{
-	case RCC_SYSTEM_CLOCK_HSI: *SystemClock=RCC_SYSTEM_CLOCK_HSI; break;
-	case RCC_SYSTEM_CLOCK_HSE: *SystemClock=RCC_SYSTEM_CLOCK_HSE; break;
-	case RCC_SYSTEM_CLOCK_PLL: *SystemClock=RCC_SYSTEM_CLOCK_PLL; break;
-	default :     Local_tenuErrorStatus = LBTY_NOK;
-
-	}
-	return Local_tenuErrorStatus;
-
-}
-/******************************Function to PLL INPUT Clock**********************************************/
-tenu_ErrorStatus MRCC_GetPLLInputClock(u8 *PLLInputClock)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_u32SystemClock = ((RCC_PLLCFGR>>RCC_PLL_SOURCE_MASK)&0X01);
-	switch(Local_u32SystemClock)
-	{
-	case RCC_HSI_PLL_SOURCE: *PLLInputClock=RCC_HSI_PLL_SOURCE; break;
-	case RCC_HSE_PLL_SOURCE: *PLLInputClock=RCC_HSE_PLL_SOURCE; break;
-	default :     Local_tenuErrorStatus = LBTY_NOK;
-	}
-	return Local_tenuErrorStatus;
-}
-/******************************Function to Select PLL INPUT Clock****************************************/
-tenu_ErrorStatus MRCC_SelectPLLInputClock(u8 PLLInputClock)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u8 Local_StausHSI=RCC_CLK_NOT_READY;
-	u8 Local_StausHSE=RCC_CLK_NOT_READY;
-
-	if(PLLInputClock>RCC_PLL_INPUT_HSE)
-	{
-		Local_tenuErrorStatus = LBTY_NOK;
-	}
-	else
-	{
-		switch(PLLInputClock)
-		{
-		case RCC_PLL_INPUT_HSI:
-			Local_tenuErrorStatus=MRCC_CheckHSIStatus(&Local_StausHSI);
-			if(Local_StausHSI==RCC_CLK_NOT_READY)
-			{
-				Local_tenuErrorStatus = LBTY_NOK;
-			}
-			else
-			{
-				RCC_PLLCFGR &=(~(1<<RCC_PLL_SOURCE));
-			}
-			break;
-		case RCC_PLL_INPUT_HSE:
-			Local_tenuErrorStatus=MRCC_CheckHSEStatus(&Local_StausHSE);
-			if(Local_StausHSE==RCC_CLK_NOT_READY)
-			{
-				Local_tenuErrorStatus = LBTY_NOK;
-			}
-			else
-			{
-				RCC_PLLCFGR |=(1<<RCC_PLL_SOURCE);
-			}
-			break;
-		default: Local_tenuErrorStatus = LBTY_NOK;
-		}
-
-	}
-
-
-	return Local_tenuErrorStatus;
-}
-/******************************Function to Select P factor for PLL****************************************/
-tenu_ErrorStatus MRCC_SelectPLLPFactor(u32 PLLPFactor)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_temp=RCC_PLLCFGR;
-	u8 Local_SystemClock=ZERO;
-	MRCC_GetSystemClock(&Local_SystemClock);
-	if(PLLPFactor>RCC_PLLP_8||Local_SystemClock==RCC_SYSTEM_CLOCK_PLL)
-	{
-		Local_tenuErrorStatus = LBTY_NOK;
-	}
-	else
-	{
-		Local_temp &=(RCC_PLLP_MASK);
-		Local_temp |=PLLPFactor;
-		RCC_PLLCFGR=Local_temp;
-	}
-
-	return Local_tenuErrorStatus;
-
-}
-/******************************Function to Select M factor for PLL****************************************/
-tenu_ErrorStatus MRCC_SelectPLLMFactor(u32 PLLMFactor)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_temp=RCC_PLLCFGR;
-	u8 Local_SystemClock=ZERO;
-	MRCC_GetSystemClock(&Local_SystemClock);
-	if(PLLMFactor>RCC_PLLM_MAX||PLLMFactor<RCC_PLLM_MIN||Local_SystemClock==RCC_SYSTEM_CLOCK_PLL)
-	{
-		Local_tenuErrorStatus = LBTY_NOK;
-	}
-	else
-	{
-		Local_temp &=RCC_PLLM_MASK;
-		Local_temp |=PLLMFactor;
-		RCC_PLLCFGR=Local_temp;
-	}
-	return Local_tenuErrorStatus;
-
-}
-
-/******************************Function to Select N factor for PLL****************************************/
-tenu_ErrorStatus MRCC_SelectPLLNFactor(u32 PLLNFactor)
-{
-	tenu_ErrorStatus Local_tenuErrorStatus = LBTY_OK;
-	u32 Local_temp=RCC_PLLCFGR;
-	u8 Local_SystemClock=ZERO;
-	MRCC_GetSystemClock(&Local_SystemClock);
-	if(PLLNFactor>RCC_PLLN_MAX||PLLNFactor<RCC_PLLN_MIN||Local_SystemClock==RCC_SYSTEM_CLOCK_PLL)
-	{
-		Local_tenuErrorStatus = LBTY_NOK;
-	}
-	else
-	{
-		Local_temp &=(RCC_PLLN_MASK);
-		Local_temp |=PLLNFactor;
-		RCC_PLLCFGR=Local_temp;
-	}
-
-
-	return Local_tenuErrorStatus;
-
+    return Ret_CtrlPeri;
 }
 
 
+RCC_errors_t RCC_ConfigurePrescaler(uint32_t PeriPreSc, uint32_t Prescaler)
+{   
+    RCC_errors_t Ret_CfgPreSc= RCC_enuOk;
+    uint32_t Loc_RegTempValue;
 
+    Loc_RegTempValue = RCC->CFGR;
+    switch (PeriPreSc)
+    {
+    case PeriPresc_AHB:
+        Loc_RegTempValue &= (~(PeriPresc_AHB_Mask));
+        break;
+    case PeriPresc_APB1:
+        Loc_RegTempValue &= (~(PeriPresc_APB1_Mask));
+        break;
+    case PeriPresc_APB2:
+        Loc_RegTempValue &= (~(PeriPresc_APB2_Mask));
+        break;
+    case PeriPresc_RTC:
+        Loc_RegTempValue &= (~(PeriPresc_RTC_Mask));
+        break;
+    case PeriPresc_MCO1:
+        Loc_RegTempValue &= (~(PeriPresc_MCO1_Mask));
+        break;
+    case PeriPresc_MCO2:
+        Loc_RegTempValue &= (~(PeriPresc_MCO2_Mask));
+        break;
+    
+    default:
+        Ret_CfgPreSc = RCC_enuPeriNotFound;
+        break;
+    }
 
+    Loc_RegTempValue |= (Prescaler << PeriPreSc );
+    RCC->CFGR = Loc_RegTempValue;
 
-
-
-
-
-
-
-
-
-
-
+    return Ret_CfgPreSc;
+}
 
 

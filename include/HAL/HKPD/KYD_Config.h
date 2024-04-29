@@ -14,7 +14,12 @@
 /*number of columns*/
 #define KPD_NUMBER_OF_COLUMNS           4
 /*The names of the switches in keypad*/
-#define KPD_ARRAY                       {{'M','S','K','+'},{'-','U','D','R'},{'L','T','C','D'},{'E','F','G','H'}}
+#define KPD_ARRAY                       {{'X','L','X','M'},{'X','D','U','S'},{'X','R','K','C'},{'X','-','+','E'}}
+												// M S C E
+												//X U K +
+												//L D R -
+												//X X X X
+//#define KPD_ARRAY                       {{'M','S','C','E'},{'X','U','K','+'},{'L','D','R','-'},{'X','X','X','X'}}
 /*The sign that indicates there are no buttons pressed*/
 #define KPD_NO_PRESSED_SWITCH           0xff
 

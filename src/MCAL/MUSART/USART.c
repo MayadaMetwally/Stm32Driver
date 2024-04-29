@@ -439,7 +439,7 @@ USART_enuErrorStatus USART_RegisterCallBackFunction( USART_Mode Mode, CallBack C
 }
 USART_enuErrorStatus USART_InputUsart(void * USART_channel,u8 * Channel_idx)
 {
-	    USART_enuErrorStatus Loc_ErrorStatus= LBTY_OK;
+	    USART_enuErrorStatus Loc_ErrorStatus= USART_OK;
  		if(USART_channel==USART1)
 		{
 			*Channel_idx=USART_1;
@@ -457,7 +457,7 @@ USART_enuErrorStatus USART_InputUsart(void * USART_channel,u8 * Channel_idx)
 		}
 		else
 		{
-			Loc_ErrorStatus= LBTY_ErrorInvalidInput;
+			Loc_ErrorStatus= USART_NullConfPointer;
 		}
 
 	return Loc_ErrorStatus;	
@@ -467,56 +467,51 @@ USART_enuErrorStatus USART_InputUsart(void * USART_channel,u8 * Channel_idx)
 
 void USART1_IRQHandler(void)
 {
-		
-
-		/*Read transmitting flag*/
-		if((((USART_t*)USART1)->SR >> TRANSMIT_COMPLETE_BIT) & 0x01)
+	if(Uart_prvRx_BuzyFlag[USART_1] == USART_BUSY && (((((USART_t*)USART1)->SR >> RX_DATA_NOT_EMPTY_BIT) & 0x01)))
+	{
+		Uart_prvRx_BufferReceive[USART_1][Uart_prvRx_BufferIndex[USART_1]] = ((USART_t*)USART1)->DR;
+		Uart_prvRx_BufferIndex[USART_1]++;
+		if(Uart_prvRx_BufferSize[USART_1] == Uart_prvRx_BufferIndex[USART_1])
 		{
-			if(Uart_prvTX_BufferIndex[USART_1] == Uart_prvTX_BufferSize[USART_1])
+			((USART_t*)USART1)->CR1 &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
+			Uart_prvRx_BuzyFlag[USART_1] = USART_IDLE;
+			Uart_prvRx_BufferSize[USART_1] = 0;
+			if(USART_pvCallBackFunc[UART1_RECEIVE])
 			{
-				/*clear Buzy Tx flag*/
-				Uart_prvTX_BuzyFlag[USART_1] = USART_IDLE;
-				/*clear Tx Buffer Size*/
-				Uart_prvTX_BufferSize[USART_1] = 0;
-				/*Disable tc interrupt*/
-				((USART_t*)USART1)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
-				if(USART_pvCallBackFunc[UART1_SEND])
-				{
-					USART_pvCallBackFunc[UART1_SEND]();
-				}
-	
-
-
-			}/*end of if*/
-			else
-			{
-				((USART_t*)USART1)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
-				((USART_t*)USART1)->DR = Uart_prvTX_BufferSend[USART_1][Uart_prvTX_BufferIndex[USART_1]];
-				Uart_prvTX_BufferIndex[USART_1]++;
-
-			}/*end of else*/
-
-		}/*end of if*/
-	
-
-
-		if(Uart_prvRx_BuzyFlag[USART_1] == USART_BUSY && (((((USART_t*)USART1)->SR >> RX_DATA_NOT_EMPTY_BIT) & 0x01)))
-		{
-			Uart_prvRx_BufferReceive[USART_1][Uart_prvRx_BufferIndex[USART_1]] = ((USART_t*)USART1)->DR;
-			Uart_prvRx_BufferIndex[USART_1]++;
-			if(Uart_prvRx_BufferSize[USART_1] == Uart_prvRx_BufferIndex[USART_1])
-			{
-				((USART_t*)USART1)->CR1 &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
-				Uart_prvRx_BuzyFlag[USART_1] = USART_IDLE;
-				Uart_prvRx_BufferSize[USART_1] = 0;
-				if(USART_pvCallBackFunc[UART1_RECEIVE])
-				{
-					USART_pvCallBackFunc[UART1_RECEIVE]();
-				}
-				
+				USART_pvCallBackFunc[UART1_RECEIVE]();
 			}
 			
 		}
+		
+	}
+		
+
+		/*Read transmitting flag*/
+	if((((USART_t*)USART1)->SR >> TRANSMIT_COMPLETE_BIT) & 0x01)
+	{
+		if(Uart_prvTX_BufferIndex[USART_1] == Uart_prvTX_BufferSize[USART_1])
+		{
+			/*clear Buzy Tx flag*/
+			Uart_prvTX_BuzyFlag[USART_1] = USART_IDLE;
+			/*clear Tx Buffer Size*/
+			Uart_prvTX_BufferSize[USART_1] = 0;
+			/*Disable tc interrupt*/
+			((USART_t*)USART1)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
+			if(USART_pvCallBackFunc[UART1_SEND])
+			{
+				USART_pvCallBackFunc[UART1_SEND]();
+			}
+
+		}/*end of if*/
+		else
+		{
+			((USART_t*)USART1)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
+			((USART_t*)USART1)->DR = Uart_prvTX_BufferSend[USART_1][Uart_prvTX_BufferIndex[USART_1]];
+			Uart_prvTX_BufferIndex[USART_1]++;
+		}/*end of else*/
+	}/*end of if*/
+
+
 	
 }/*end of function USART1_IRQHandler*/
 
@@ -524,106 +519,96 @@ void USART1_IRQHandler(void)
 
 void USART2_IRQHandler(void)
 {
-	
-		/*Read transmitting flag*/
-		if((((USART_t*)USART2)->SR >> TRANSMIT_COMPLETE_BIT) & 0x01)
+
+	if(Uart_prvRx_BuzyFlag[USART_2] == USART_BUSY && ((((USART_t*)USART2)->SR >> RX_DATA_NOT_EMPTY_BIT) & 0x01))
+	{
+		Uart_prvRx_BufferReceive[USART_2][Uart_prvRx_BufferIndex[USART_2]] = ((USART_t*)USART2)->DR;
+		Uart_prvRx_BufferIndex[USART_2]++;
+		if(Uart_prvRx_BufferSize[USART_2] == Uart_prvRx_BufferIndex[USART_2])
 		{
-			if(Uart_prvTX_BufferIndex[USART_2] == Uart_prvTX_BufferSize[USART_2])
+			((USART_t*)USART2)->CR1 &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
+			Uart_prvRx_BuzyFlag[USART_2] = USART_IDLE;
+			Uart_prvRx_BufferSize[USART_2] = 0;
+			if(USART_pvCallBackFunc[UART2_RECEIVE])
 			{
-				/*clear Buzy Tx flag*/
-				Uart_prvTX_BuzyFlag[USART_2] = USART_IDLE;
-				/*clear Tx Buffer Size*/
-				Uart_prvTX_BufferSize[USART_2] = 0;
-				((USART_t*)USART2)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
-				if(USART_pvCallBackFunc[UART2_SEND])
-				{
-					USART_pvCallBackFunc[UART2_SEND]();
-				}
-
-
-			}/*end of if*/
-			else
-			{
-				((USART_t*)USART2)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
-				((USART_t*)USART2)->DR = Uart_prvTX_BufferSend[USART_2][Uart_prvTX_BufferIndex[USART_2]];
-				Uart_prvTX_BufferIndex[USART_2]++;
-
-			}/*end of else*/
-
-		}/*end of if*/
-	
-
-	
-		if(Uart_prvRx_BuzyFlag[USART_2] == USART_BUSY && ((((USART_t*)USART2)->SR >> RX_DATA_NOT_EMPTY_BIT) & 0x01))
-		{
-			Uart_prvRx_BufferReceive[USART_2][Uart_prvRx_BufferIndex[USART_2]] = ((USART_t*)USART2)->DR;
-			Uart_prvRx_BufferIndex[USART_2]++;
-			if(Uart_prvRx_BufferSize[USART_2] == Uart_prvRx_BufferIndex[USART_2])
-			{
-				((USART_t*)USART2)->CR1 &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
-				Uart_prvRx_BuzyFlag[USART_2] = USART_IDLE;
-				Uart_prvRx_BufferSize[USART_2] = 0;
-				if(USART_pvCallBackFunc[UART2_RECEIVE])
-				{
-					USART_pvCallBackFunc[UART2_RECEIVE]();
-				}
-	
-				
+				USART_pvCallBackFunc[UART2_RECEIVE]();
 			}
+
 			
 		}
+		
+	}
+
+	/*Read transmitting flag*/
+	if((((USART_t*)USART2)->SR >> TRANSMIT_COMPLETE_BIT) & 0x01)
+	{
+		if(Uart_prvTX_BufferIndex[USART_2] == Uart_prvTX_BufferSize[USART_2])
+		{
+			/*clear Buzy Tx flag*/
+			Uart_prvTX_BuzyFlag[USART_2] = USART_IDLE;
+			/*clear Tx Buffer Size*/
+			Uart_prvTX_BufferSize[USART_2] = 0;
+			((USART_t*)USART2)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
+			if(USART_pvCallBackFunc[UART2_SEND])
+			{
+				USART_pvCallBackFunc[UART2_SEND]();
+			}
+		}/*end of if*/
+		else
+		{
+			((USART_t*)USART2)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
+			((USART_t*)USART2)->DR = Uart_prvTX_BufferSend[USART_2][Uart_prvTX_BufferIndex[USART_2]];
+			Uart_prvTX_BufferIndex[USART_2]++;
+		}/*end of else*/
+	}/*end of if*/
+
+	
+
 	
 }/*end of function USART2_IRQHandler*/
 
 void USART6_IRQHandler(void)
 {
 
-		/*Read transmitting flag*/
-		if((((USART_t*)USART6)->SR >> TRANSMIT_COMPLETE_BIT) & 0x01)
+	if(Uart_prvRx_BuzyFlag[USART_6] == USART_BUSY && ((((USART_t*)USART6)->SR >> RX_DATA_NOT_EMPTY_BIT) & 0x01))
+	{
+		Uart_prvRx_BufferReceive[USART_6][Uart_prvRx_BufferIndex[USART_6]] = ((USART_t*)USART6)->DR;
+		Uart_prvRx_BufferIndex[USART_6]++;
+		if(Uart_prvRx_BufferSize[USART_6] == Uart_prvRx_BufferIndex[USART_6])
 		{
-			if(Uart_prvTX_BufferIndex[USART_6] == Uart_prvTX_BufferSize[USART_6])
-			{
-				/*clear Buzy Tx flag*/
-				Uart_prvTX_BuzyFlag[USART_6] = USART_IDLE;
-				/*clear Tx Buffer Size*/
-				Uart_prvTX_BufferSize[USART_6] = 0;
-				((USART_t*)USART6)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
-				if(USART_pvCallBackFunc[UART6_SEND])
-				{
-					USART_pvCallBackFunc[UART6_SEND]();
-				}
-	
+			((USART_t*)USART6)->SR &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
+			Uart_prvRx_BuzyFlag[USART_6] = USART_IDLE;
+			Uart_prvRx_BufferSize[USART_6] = 0;
+		if(USART_pvCallBackFunc[UART6_RECEIVE])
+		{
+			USART_pvCallBackFunc[UART6_RECEIVE]();
+		}
 
-			}/*end of if*/
-			else
+		}
+		
+	}
+	/*Read transmitting flag*/
+	if((((USART_t*)USART6)->SR >> TRANSMIT_COMPLETE_BIT) & 0x01)
+	{
+		if(Uart_prvTX_BufferIndex[USART_6] == Uart_prvTX_BufferSize[USART_6])
+		{
+			/*clear Buzy Tx flag*/
+			Uart_prvTX_BuzyFlag[USART_6] = USART_IDLE;
+			/*clear Tx Buffer Size*/
+			Uart_prvTX_BufferSize[USART_6] = 0;
+			((USART_t*)USART6)->CR1 &= ~(1 << TRANSMIT_COMPLETE_BIT);
+			if(USART_pvCallBackFunc[UART6_SEND])
 			{
-				((USART_t*)USART6)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
-				((USART_t*)USART6)->DR = Uart_prvTX_BufferSend[USART_6][Uart_prvTX_BufferIndex[USART_6]];
-				Uart_prvTX_BufferIndex[USART_6]++;
-
-			}/*end of else*/
+				USART_pvCallBackFunc[UART6_SEND]();
+			}
 
 		}/*end of if*/
-	
-
-
-		if(Uart_prvRx_BuzyFlag[USART_6] == USART_BUSY && ((((USART_t*)USART6)->SR >> RX_DATA_NOT_EMPTY_BIT) & 0x01))
+		else
 		{
-			Uart_prvRx_BufferReceive[USART_6][Uart_prvRx_BufferIndex[USART_6]] = ((USART_t*)USART6)->DR;
-			Uart_prvRx_BufferIndex[USART_6]++;
-			if(Uart_prvRx_BufferSize[USART_6] == Uart_prvRx_BufferIndex[USART_6])
-			{
-				((USART_t*)USART6)->SR &= ~(1 << RX_DATA_NOT_EMPTY_BIT);
-				Uart_prvRx_BuzyFlag[USART_6] = USART_IDLE;
-				Uart_prvRx_BufferSize[USART_6] = 0;
-			if(USART_pvCallBackFunc[UART6_RECEIVE])
-			{
-				USART_pvCallBackFunc[UART6_RECEIVE]();
-			}
-	
+			((USART_t*)USART6)->SR &= ~(1 << TRANSMIT_COMPLETE_BIT);
+			((USART_t*)USART6)->DR = Uart_prvTX_BufferSend[USART_6][Uart_prvTX_BufferIndex[USART_6]];
+			Uart_prvTX_BufferIndex[USART_6]++;
+		}/*end of else*/
+	}/*end of if*/		
 
-			}
-			
-		}
-	
-}/*end of function USART2_IRQHandler*/
+}/*nd of function USART2_IRQHandler*/
